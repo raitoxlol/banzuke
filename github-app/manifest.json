@@ -1,0 +1,9 @@
+{
+  "name": "Pulse League",
+  "url": "https://YOUR-DEPLOYMENT.vercel.app",
+  "hook_attributes": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/github/webhook" },
+  "redirect_url": "https://YOUR-DEPLOYMENT.vercel.app/join",
+  "public": true,
+  "default_permissions": { "contents": "read", "metadata": "read", "pull_requests": "read" },
+  "default_events": ["push", "pull_request", "release"]
+}
