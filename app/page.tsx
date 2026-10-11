@@ -1,29 +1,45 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PulseMap } from "@/components/PulseMap";
+import { Banzuke } from "@/components/Banzuke";
 import { anonClient, hasSupabase, PulseEvent, Team } from "@/lib/supabase";
 import { BRAND } from "@/lib/brand";
-import { DEMO_TEAMS, fakeEvent } from "@/lib/demo";
+import { DEMO_TEAMS, demoLine, fakeEvent, seedEvents } from "@/lib/demo";
 
 const LABEL = { push: "pushed", pr_merged: "merged a PR", release: "shipped a release" } as const;
+
+function ago(iso: string, now: number) {
+  const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`;
+}
 
 export default function Broadcast() {
   const [events, setEvents] = useState<PulseEvent[]>([]);
   const [teams, setTeams] = useState<Team[]>(DEMO_TEAMS);
   const [line, setLine] = useState(`${BRAND.name} is live. Ship code, score for your team.`);
+  const [now, setNow] = useState(() => Date.now());
   const demo = !hasSupabase();
 
-  // Recompute team scores from what we've seen (demo) or reload the view (live).
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   useEffect(() => {
     if (demo) {
+      const seed = seedEvents(40, 15);
+      const total = (id: number, list: PulseEvent[]) => list.filter((e) => e.team_id === id).reduce((s, e) => s + e.points, 0);
+      let board = DEMO_TEAMS.map((t) => ({ ...t, score: total(t.id, seed) }));
+      setEvents(seed);
+      setTeams(board);
       const t = setInterval(() => {
         const e = fakeEvent();
+        board = board.map((x) => (x.id === e.team_id ? { ...x, score: x.score + e.points } : x));
+        const leader = [...board].sort((a, b) => b.score - a.score)[0].name;
+        const said = demoLine(e, board.find((x) => x.id === e.team_id)!.name, leader);
         setEvents((prev) => [e, ...prev].slice(0, 200));
-        setTeams((prev) => prev.map((x) => (x.id === e.team_id ? { ...x, score: x.score + e.points } : x)));
-        if (e.kind !== "push") {
-          const team = DEMO_TEAMS.find((x) => x.id === e.team_id)!.name;
-          setLine(`@${e.player_login} just ${LABEL[e.kind]} for ${team}! +${e.points}`);
-        }
+        setTeams(board);
+        if (said) setLine(said);
       }, 1500);
       return () => clearInterval(t);
     }
@@ -46,37 +62,63 @@ export default function Broadcast() {
     return () => { sb.removeChannel(ch); };
   }, [demo]);
 
-  const sorted = [...teams].sort((a, b) => b.score - a.score);
-  const color = new Map(teams.map((t) => [t.id, t.color]));
+  const team = new Map(teams.map((t) => [t.id, t]));
+  const recent = events.filter((e) => now - new Date(e.created_at).getTime() < 15 * 60_000);
+  const stats = [
+    ["Plays", recent.length],
+    ["Builders", new Set(recent.map((e) => e.player_login)).size],
+    ["Points", recent.reduce((s, e) => s + e.points, 0)],
+  ] as const;
 
   return (
     <main className="broadcast">
       <header>
-        <h1><span className="dot" /> {BRAND.name.toUpperCase()} <small>{demo ? "DEMO" : "LIVE"}</small></h1>
-        <a href="/join" className="join">Join a team →</a>
+        <div className="wordmark">
+          <span className="dot" />
+          <span>{BRAND.name.toUpperCase()}</span>
+          <span className="badge">{demo ? "DEMO" : "LIVE"}</span>
+        </div>
+        <div className="head-right">
+          <span className="num muted" suppressHydrationWarning>{new Date(now).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo" })} JST</span>
+          <a href="/join" className="join">Join a team</a>
+        </div>
       </header>
-      <section className="commentary">{line}</section>
+
+      <section className="ticker" aria-live="polite">
+        <span className="ticker-tag">GROK</span>
+        <p key={line}>{line}</p>
+      </section>
+
       <div className="grid">
-        <PulseMap events={events} teams={teams} />
+        <section className="stage">
+          <PulseMap events={events} teams={teams} />
+          <dl className="stats">
+            {stats.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className="num">{v}</dd></div>)}
+            <div><dt>Window</dt><dd className="num">15m</dd></div>
+          </dl>
+        </section>
+
         <aside>
-          <h2>This week</h2>
-          <ol className="scores">
-            {sorted.map((t) => (
-              <li key={t.id} style={{ borderColor: t.color }}>
-                <span>{t.name}</span><b>{t.score}</b>
-              </li>
-            ))}
-          </ol>
-          <h2>Plays</h2>
-          <ul className="feed">
-            {events.slice(0, 12).map((e) => (
-              <li key={e.id}>
-                <i style={{ background: color.get(e.team_id) }} />
-                <b>@{e.player_login}</b> {LABEL[e.kind]} <em>+{e.points}</em>
-                <div className="muted small">{e.repo} · {e.summary}</div>
-              </li>
-            ))}
-          </ul>
+          <div className="panel">
+            <h2><span>Banzuke</span><span className="jp" aria-hidden>番付</span></h2>
+            <Banzuke teams={teams} />
+          </div>
+          <div className="panel feed-panel">
+            <h2><span>Plays</span></h2>
+            <ul className="feed">
+              {events.slice(0, 14).map((e) => (
+                <li key={e.id} className={e.kind}>
+                  <i style={{ background: team.get(e.team_id)?.color }} />
+                  <div>
+                    <div><b>@{e.player_login}</b> <span className="muted">{LABEL[e.kind]}</span></div>
+                    <div className="muted small">{e.repo} · {e.summary}</div>
+                  </div>
+                  <em className="num">+{e.points}</em>
+                  <time className="num muted small">{ago(e.created_at, now)}</time>
+                </li>
+              ))}
+            </ul>
+          </div>
         </aside>
       </div>
     </main>
