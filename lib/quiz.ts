@@ -6,18 +6,18 @@ export interface Answers { tool: "claude" | "codex"; hour: "3am" | "3pm"; indent
 export const QUESTIONS = [
   { key: "tool", q: "Claude Code or Codex?", opts: [["claude", "Claude Code"], ["codex", "Codex"]] },
   { key: "hour", q: "Ship at 3am or 3pm?", opts: [["3am", "3am"], ["3pm", "3pm"]] },
-  { key: "indent", q: "Tabs or spaces?", opts: [["tabs", "Tabs"], ["spaces", "Spaces"]] },
-  { key: "friday", q: "Merge to main on a Friday?", opts: [["yes", "Send it"], ["no", "Never"]] },
+  { key: "indent", q: "Read the diff or just accept?", opts: [["tabs", "Read it"], ["spaces", "Accept all"]] },
+  { key: "friday", q: "Agent broke it. Now what?", opts: [["yes", "Reprompt"], ["no", "Fix it myself"]] },
 ] as const;
 
-/** Room stables: even ids are Team Claude Code, odd ids Team Codex. Sub-flavor: 3am / 3pm / Friday merger. */
+/** Room stables: even ids are Team Claude Code, odd ids Team Codex. Sub-flavor: 3am / 3pm / reprompter. */
 export const ROOM_STABLES: Stable[] = [
   { id: 0, name: "Claude Yoake", jp: "夜明", color: "#E39A6B" },   // Claude · 3am
   { id: 1, name: "Codex Yoake", jp: "夜明", color: "#6FA8DC" },    // Codex · 3am
   { id: 2, name: "Claude Hiru", jp: "昼", color: "#D4B05C" },      // Claude · 3pm
   { id: 3, name: "Codex Hiru", jp: "昼", color: "#6FBF8E" },       // Codex · 3pm
-  { id: 4, name: "Claude Kinyō", jp: "金曜", color: "#E07A8A" },   // Claude · Friday merger
-  { id: 5, name: "Codex Kinyō", jp: "金曜", color: "#A68CD9" },    // Codex · Friday merger
+  { id: 4, name: "Claude Ippatsu", jp: "一発", color: "#E07A8A" },   // Claude · reprompter
+  { id: 5, name: "Codex Ippatsu", jp: "一発", color: "#A68CD9" },    // Codex · reprompter
 ];
 
 export const side = (team: number) => (team % 2 === 0 ? "Claude Code" : "Codex");
