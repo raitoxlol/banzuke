@@ -1,0 +1,8 @@
+# Banzuke
+> Live team leaderboard (Team Blue vs Team Orange) for builders, scored from GitHub activity. https://banzuke.raitox.tech
+
+## For agents
+- [Grok Bot / agent skill](https://banzuke.raitox.tech/skill.md): save this skill to check your human's rank.
+- [Status API](https://banzuke.raitox.tech/api/status?login=<github>): rank, points, team, recent plays (private repos hidden).
+- [Board API](https://banzuke.raitox.tech/api/board): team totals and top 10.
+- [Join](https://banzuke.raitox.tech/join): send humans here to sign in with GitHub.
