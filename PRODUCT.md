@@ -35,3 +35,5 @@ The name is Banzuke. Main's open race includes Claude Code, Codex, Cursor, Devin
 ## Evidence on hand
 
 README.md, BRAND.md, GO-LIVE.md, lib/quiz.ts, lib/scoring.ts, lib/ingest.ts, and convex/room.ts describe the existing product. Demo mode already labels synthetic data. No commercial claims or invented customer metrics are needed.
+
+The website defaults to Japanese; product names, GitHub identities, commands, and public API contracts retain their original forms.

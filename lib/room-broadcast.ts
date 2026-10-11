@@ -35,7 +35,7 @@ export interface BroadcastModel {
   readonly commentary: string;
 }
 
-export const PLAY_VERB = { push: "pushed to", pr_merged: "merged in", release: "released" } satisfies Record<BroadcastPlay["kind"], string>;
+export const PLAY_VERB = { push: "プッシュ", pr_merged: "PRをマージ", release: "リリース" } satisfies Record<BroadcastPlay["kind"], string>;
 
 /** One snapshot of real data: agent race, builder ranking, and safe display text. */
 export function deriveBroadcast(data: RoomData): BroadcastModel {
@@ -58,10 +58,10 @@ export function deriveBroadcast(data: RoomData): BroadcastModel {
   const race = tallyRace(data.players, ordered);
   const latest = feed[0];
   const tr = tallyTeams(data.players, ordered);
-  const lead = tr.leader !== null ? `${tr.sides[tr.leader].name} leads ${tr.sides[tr.leader].points}–${tr.sides[1 - tr.leader].points}.` : race.total ? "Dead heat at the top." : "";
+  const lead = tr.leader !== null ? `${tr.sides[tr.leader].name} が${tr.sides[tr.leader].points}対${tr.sides[1 - tr.leader].points}でリード。` : race.total ? "首位は同点。" : "";
   const commentary = latest
-    ? `@${latest.login} ${PLAY_VERB[latest.kind]} ${latest.label}. +${latest.points} for ${agentLabel(latest.agent)}. ${lead}`.trim()
-    : "Waiting for the first push. Scan to join: sign in with GitHub and your last 72 hours count.";
+    ? `@${latest.login} が${latest.private ? "非公開リポジトリ" : latest.label}に${PLAY_VERB[latest.kind]}。${latest.agent === "human" ? "手動・その他" : agentLabel(latest.agent)} に+${latest.points}点。${lead}`.trim()
+    : "最初のプッシュを待っています。QRコードからGitHubでログインすると、過去72時間の活動が得点に加算されます。";
   return { race, builders, feed, commentary };
 }
 

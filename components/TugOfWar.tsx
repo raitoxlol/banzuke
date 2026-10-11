@@ -36,22 +36,22 @@ export function TugBar({ s, variant = "standalone" }: { s: Race; variant?: "stan
   // Broadcast shows lanes that have anyone in them; standalone /tug shows the whole field.
   const lanes = variant === "broadcast" ? s.lanes.filter((l) => l.points || l.builders) : s.lanes;
   const gap = s.leader ? s.lanes[0].points - s.lanes[1].points : 0;
-  const leadText = s.leader ? `${agentLabel(s.leader)} leads by ${gap.toLocaleString()} ${gap === 1 ? "point" : "points"}` : s.total ? "Dead heat at the top" : "Waiting for the first push — scan to join";
+  const leadText = s.leader ? `${s.leader === "human" ? "手動・その他" : agentLabel(s.leader)} が${gap.toLocaleString("ja-JP")}点差でリード` : s.total ? "首位は同点" : "最初のプッシュを待っています。QRコードから参加できます";
 
-  return <section className={`race ${variant === "broadcast" ? "bzk-tug race-broadcast" : "race-standalone"}`} aria-label="Agent race">
+  return <section className={`race ${variant === "broadcast" ? "bzk-tug race-broadcast" : "race-standalone"}`} aria-label="エージェント対抗戦">
     <div className="race-head">
-      <h2>Agent race <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2>
+      <h2>エージェント対抗戦 <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2>
       <p className={s.leader ? "is-leading" : ""} style={s.leader ? { color: s.lanes[0].color } : undefined}>{leadText}</p>
       {flip && !reduced && <span className="race-flip" lang="ja">逆転</span>}
     </div>
     {lanes.length ? <ol className="race-lanes">
       {lanes.map((l, i) => <li key={l.id} className={`race-lane ${!reduced && flash === l.id ? "is-scoring" : ""}`} style={{ ["--lane" as string]: l.color }}>
         <span className="race-pos num">#{i + 1}</span>
-        <span className="race-name">{l.label}<small>{l.builders} {l.builders === 1 ? "builder" : "builders"}</small></span>
+        <span className="race-name">{l.id === "human" ? "手動・その他" : l.label}<small>参加者 {l.builders}人</small></span>
         <span className="race-track" aria-hidden="true"><i style={{ width: `${l.points / top * 100}%` }} /></span>
         <span className="race-pts"><Count value={l.points} /></span>
       </li>)}
-    </ol> : <p className="race-empty">Waiting for the first push — scan to join.</p>}
+    </ol> : <p className="race-empty">最初のプッシュを待っています。QRコードから参加できます。</p>}
   </section>;
 }
 
@@ -94,15 +94,15 @@ export function TeamTugBar({ t, big = false }: { t: TeamRace; big?: boolean }) {
   const [a, b] = t.sides;
   const pct = t.total ? (a.points / t.total) * 100 : 50;
   const gap = Math.abs(a.points - b.points);
-  const lead = t.leader === null ? (t.total ? "Dead heat!" : "Waiting for the first push — scan to join") : `${t.sides[t.leader].name} leads by ${gap.toLocaleString()}`;
+  const lead = t.leader === null ? (t.total ? "両チームは同点！" : "最初のプッシュを待っています。QRコードから参加できます") : `${t.sides[t.leader].name} が${gap.toLocaleString("ja-JP")}点差でリード`;
   const side = (s: TeamSide, align: "left" | "right") => <div style={{ textAlign: align }}>
     <div style={{ fontWeight: 900, fontSize: big ? 40 : 24, color: s.color, lineHeight: 1.1 }}>{s.name}</div>
     <div style={{ fontWeight: 900, fontSize: big ? 72 : 44 }}><Count value={s.points} /></div>
-    <small style={{ opacity: 0.7 }}>{s.builders} {s.builders === 1 ? "builder" : "builders"}</small>
+    <small style={{ opacity: 0.7 }}>参加者 {s.builders}人</small>
   </div>;
-  return <section className="race bzk-tug team-tug" aria-label="Team battle" style={{ position: "relative" }}>
+  return <section className="race bzk-tug team-tug" aria-label="チーム対抗戦" style={{ position: "relative" }}>
     <div className="race-head">
-      <h2>Team battle <span lang="ja" className="bzk-jp" aria-hidden="true">団体戦</span></h2>
+      <h2>チーム対抗戦 <span lang="ja" className="bzk-jp" aria-hidden="true">団体戦</span></h2>
       <p className={t.leader !== null ? "is-leading" : ""} style={t.leader !== null ? { color: t.sides[t.leader].color } : undefined}>{lead}</p>
       {flip && !reduced && <span className="race-flip" lang="ja">逆転</span>}
     </div>
@@ -119,7 +119,7 @@ export function AgentChips({ s }: { s: Race }) {
   const lanes = s.lanes.filter((l) => l.points);
   if (!lanes.length) return null;
   return <p className="agent-chips" style={{ fontSize: 13, opacity: 0.75, margin: "6px 0 0", display: "flex", gap: 12, flexWrap: "wrap" }}>
-    <span>By agent:</span>{lanes.map((l) => <span key={l.id}><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 9, background: l.color, marginRight: 4 }} />{l.label} {l.points}</span>)}
+    <span>エージェント別：</span>{lanes.map((l) => <span key={l.id}><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 9, background: l.color, marginRight: 4 }} />{l.id === "human" ? "手動・その他" : l.label} {l.points}</span>)}
   </p>;
 }
 

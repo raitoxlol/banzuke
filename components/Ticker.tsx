@@ -24,7 +24,7 @@ export function Count({ value, decimals = 0 }: { value: number; decimals?: numbe
     const step = () => { const k = Math.max(0, Math.min(1, (performance.now() - start) / d)); const e = 1 - Math.pow(1 - k, 3); const x = a + (value - a) * e; setV(x); from.current = x; if (k < 1) raf = requestAnimationFrame(step); };
     raf = requestAnimationFrame(step); return () => cancelAnimationFrame(raf);
   }, [value, reduced]);
-  return <span className="num">{(reduced ? value : v).toLocaleString("en-US", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })}</span>;
+  return <span className="num">{(reduced ? value : v).toLocaleString("ja-JP", { maximumFractionDigits: decimals, minimumFractionDigits: decimals })}</span>;
 }
 
 type PauseReason = "button" | "pointer" | "focus";
@@ -51,13 +51,13 @@ export function CommentaryTicker({ text }: { text: string }) {
       return reasons.length ? { kind: "paused", reasons, text: previous.kind === "paused" ? previous.text : rendered } : { kind: "following" };
     });
   };
-  return <section className="bzk-ticker" aria-label="Match commentary" data-paused={paused}
+  return <section className="bzk-ticker" aria-label="試合の実況" data-paused={paused}
     onPointerEnter={() => changePause("pointer", true)} onPointerLeave={() => changePause("pointer", false)}
     onFocusCapture={() => changePause("focus", true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) changePause("focus", false); }}>
-    <span className="bzk-ticker-title">Commentary</span>
+    <span className="bzk-ticker-title">実況</span>
     <p className="bzk-sr-only">{visibleText}</p>
     <div className="bzk-ticker-window" aria-hidden="true"><div className="bzk-ticker-track" onAnimationIteration={() => { if (!paused) setRendered(text); }}><span>{visibleText}</span><span>{visibleText}</span></div></div>
-    <button type="button" className="bzk-ticker-pause" aria-pressed={buttonPaused} aria-label={buttonPaused ? "Resume commentary" : "Pause commentary"} onClick={() => changePause("button", !buttonPaused)}>
+    <button type="button" className="bzk-ticker-pause" aria-pressed={buttonPaused} aria-label={buttonPaused ? "実況を再開" : "実況を一時停止"} onClick={() => changePause("button", !buttonPaused)}>
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{buttonPaused ? <path d="m5 3 7 5-7 5Z" /> : <path d="M5 3v10M11 3v10" />}</svg>
     </button>
   </section>;

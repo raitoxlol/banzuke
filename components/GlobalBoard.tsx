@@ -5,10 +5,11 @@ import { type Play, toPlay } from "@/lib/firehose";
 import { demoRaw } from "@/lib/demo-global";
 import { CREATION_HORIZON, DELIVERY_LIMIT, OBSERVED_HOUR, parsePublicSample, publicBoard, publicOvertake, type PublicSample } from "@/lib/global-board";
 
-const VERB = { push: "pushed", pr_merged: "merged a PR", release: "released", star: "starred" } as const;
+const VERB = { push: "プッシュしました", pr_merged: "PRをマージしました", release: "リリースしました", star: "スターを付けました" } as const;
+const summaryLabel = (play: Play) => play.kind === "star" ? "スターを追加" : play.kind === "push" ? play.summary.startsWith("to ") ? `ブランチ：${play.summary.slice(3)}` : "プッシュ" : play.summary;
 function ago(at: number, now: number) {
   const seconds = Math.max(0, Math.floor((now - at) / 1000));
-  return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m` : `${Math.floor(seconds / 3600)}h`;
+  return seconds < 60 ? `${seconds}秒` : seconds < 3600 ? `${Math.floor(seconds / 60)}分` : `${Math.floor(seconds / 3600)}時間`;
 }
 function usePublicBoard() {
   const [mode, setMode] = useState<"public" | "demo" | null>(null);
@@ -37,7 +38,7 @@ function usePublicBoard() {
       let wait = 60_000;
       try {
         const response = await fetch("/api/firehose", { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error("Public sample unavailable");
+        if (!response.ok) throw new Error("公開サンプルを取得できません");
         const incoming = parsePublicSample(await response.json());
         if (!incoming) throw new Error("Invalid public sample");
         if (cancelled) return;
@@ -75,36 +76,36 @@ export default function GlobalBoard() {
   const [paused, setPaused] = useState<{ plays: typeof view.plays; now: number } | null>(null);
   const shownPlays = paused?.plays ?? view.plays;
   const feedNow = paused?.now ?? now;
-  const status = mode === "demo" ? "Demo sample" : { starting: "Connecting to GitHub", live: "Public sample available", rate_limited: "GitHub rate limit", error: "Public sample unavailable" }[sample.status];
+  const status = mode === "demo" ? "デモのサンプル" : { starting: "GitHubに接続中", live: "公開サンプルを取得済み", rate_limited: "GitHubのリクエスト上限に到達", error: "公開サンプルを取得できません" }[sample.status];
   return <main className="product-page global-page"><ProductHeader current="global" />
-    <div className="product-intro"><h1>Public builders, ranked.</h1><p>A delayed sample of public GitHub activity. No sign-in required.</p></div>
-    <section className="global-status product-panel" aria-label="Sample status">
+    <div className="product-intro"><h1>世界の開発者を番付で見る。</h1><p>GitHubの公開活動の一部を、時間差で表示します。ログインは不要です。</p></div>
+    <section className="global-status product-panel" aria-label="サンプルの取得状況">
       <div><p className={`source-state ${mode === "demo" || sample.status === "rate_limited" || sample.status === "error" ? "is-warning" : ""}`} role="status"><i aria-hidden="true" />{status}</p>
-        <p className="product-muted">{mode === "demo" ? "Illustrative activity only. This page isn't polling GitHub." : "Observed in the last hour, up to 600 newest events. GitHub event times may be much older."}</p>
-        {mode !== "demo" && sample.lastSuccessAt && <p className="product-muted">Last successful check {new Date(sample.lastSuccessAt).toLocaleTimeString()}</p>}
-        {mode !== "demo" && sample.status === "rate_limited" && <p className="product-notice">Next check in about {Math.max(1, Math.ceil((nextCheckAt - now) / 60_000))} minutes. Recent real activity stays until it expires.</p>}
-        {mode !== "demo" && sample.status === "error" && <p className="product-notice">The refresh failed. Recent real activity stays until it expires.</p>}
-        {sample.capacityReached && <p className="product-notice">The sample has reached capacity. New events wait for space.</p>}
+        <p className="product-muted">{mode === "demo" ? "サンプル用の活動を表示しています。このページはGitHubから取得していません。" : "直近1時間に取得した最新イベントを最大600件表示します。GitHubで実際に発生した時刻は、それより古い場合があります。"}</p>
+        {mode !== "demo" && sample.lastSuccessAt && <p className="product-muted">最終取得 {new Date(sample.lastSuccessAt).toLocaleTimeString("ja-JP", { timeZone: "Asia/Tokyo" }) + " JST"}</p>}
+        {mode !== "demo" && sample.status === "rate_limited" && <p className="product-notice">次の取得まで約{Math.max(1, Math.ceil((nextCheckAt - now) / 60_000))}分です。取得済みの活動は表示期間が終わるまで残ります。</p>}
+        {mode !== "demo" && sample.status === "error" && <p className="product-notice">更新に失敗しました。取得済みの活動は表示期間が終わるまで残ります。</p>}
+        {sample.capacityReached && <p className="product-notice">サンプルの件数が上限に達しました。空きができるまで新しいイベントの取り込みを待ちます。</p>}
       </div>
-      <dl className="global-totals"><div><dt>Points</dt><dd>{view.total.toLocaleString()}</dd></div><div><dt>Builders</dt><dd>{view.builders.length.toLocaleString()}</dd></div><div><dt>Plays</dt><dd>{view.plays.length.toLocaleString()}</dd></div></dl>
+      <dl className="global-totals"><div><dt>得点</dt><dd>{view.total.toLocaleString("ja-JP")}</dd></div><div><dt>参加者</dt><dd>{view.builders.length.toLocaleString("ja-JP")}</dd></div><div><dt>活動</dt><dd>{view.plays.length.toLocaleString("ja-JP")}</dd></div></dl>
     </section>
     <div className="global-lists">
       <section className="product-panel global-ranks" aria-labelledby="global-rank-title">
-        <div className="global-section-heading"><h2 id="global-rank-title">Builder rankings <span lang="ja">番付</span></h2><span className="product-muted">Top 20</span></div>
-        {overtake && <p className="global-overtake" role="status"><span lang="ja">逆転</span> @{overtake.up} takes the lead from @{overtake.down}.</p>}
-        {view.builders.length ? <table><thead><tr><th scope="col">Rank</th><th scope="col">Builder</th><th scope="col" className="points-column">Points</th></tr></thead><tbody>{view.builders.slice(0, 20).map((builder, index) => <tr key={builder.login}><td className="rank-number">{index + 1}</td><th scope="row"><a href={`https://github.com/${builder.login}`} target="_blank" rel="noreferrer" title={`@${builder.login}`}>@{builder.login}</a><small>{builder.plays} {builder.plays === 1 ? "play" : "plays"}</small></th><td className="rank-points">{builder.points.toLocaleString()}</td></tr>)}</tbody></table> : <div className="product-empty"><h3>{sample.status === "starting" ? "Waiting for the public sample" : "No scoring activity in this sample"}</h3><p>{sample.status === "starting" ? "The first GitHub check is in progress." : "GitHub's public feed is a limited, delayed sample. An empty hour doesn't mean nobody is shipping."}</p></div>}
-        <p className="global-footnote product-muted">Pushes earn up to 3 points per sampled event and 12 per builder in this observed hour. Merged PRs earn 10–15; releases earn 25, or 13 for a prerelease. Stars appear without points.</p>
+        <div className="global-section-heading"><h2 id="global-rank-title">参加者ランキング <span lang="ja">番付</span></h2><span className="product-muted">上位20人</span></div>
+        {overtake && <p className="global-overtake" role="status"><span lang="ja">逆転</span> @{overtake.up} が @{overtake.down} を抜いて首位に。</p>}
+        {view.builders.length ? <table><thead><tr><th scope="col">順位</th><th scope="col">参加者</th><th scope="col" className="points-column">得点</th></tr></thead><tbody>{view.builders.slice(0, 20).map((builder, index) => <tr key={builder.login}><td className="rank-number">{index + 1}</td><th scope="row"><a href={`https://github.com/${builder.login}`} target="_blank" rel="noreferrer" title={`@${builder.login}`}>@{builder.login}</a><small>活動 {builder.plays}件</small></th><td className="rank-points">{builder.points.toLocaleString("ja-JP")}</td></tr>)}</tbody></table> : <div className="product-empty"><h3>{sample.status === "starting" ? "公開サンプルを待っています" : "このサンプルには得点対象の活動がありません"}</h3><p>{sample.status === "starting" ? "最初のGitHubデータを取得中です。" : "GitHubの公開フィードは全活動の一部を時間差で配信します。表示が空でも、開発が止まっているわけではありません。"}</p></div>}
+        <p className="global-footnote product-muted">プッシュはサンプル1件あたり最大3点、取得した1時間内で1人あたり最大12点です。PRマージは10〜15点、リリースは25点、プレリリースは13点。スターは表示されますが得点にはなりません。</p>
       </section>
       <section className="product-panel global-feed" aria-labelledby="global-feed-title">
-        <div className="global-section-heading"><h2 id="global-feed-title">Latest public plays</h2><button className="secondary" aria-pressed={paused !== null} onClick={() => setPaused(paused ? null : { plays: view.plays, now })}>{paused ? "Resume feed" : "Pause feed"}</button></div>
-        {paused && <p className="product-notice">Feed paused. Entries and ages are held; rankings keep updating.</p>}
+        <div className="global-section-heading"><h2 id="global-feed-title">最新の公開活動</h2><button className="secondary" aria-pressed={paused !== null} onClick={() => setPaused(paused ? null : { plays: view.plays, now })}>{paused ? "更新を再開" : "更新を一時停止"}</button></div>
+        {paused && <p className="product-notice">活動一覧の更新を一時停止しています。活動と経過時間の表示は固定され、ランキングは更新を続けます。</p>}
         {shownPlays.length ? <ol className="public-play-list">{shownPlays.slice(0, 50).map((play) => <li key={play.id}>
-          <div className="public-play-copy"><p><a href={`https://github.com/${play.login}`} target="_blank" rel="noreferrer" title={`@${play.login}`}>@{play.login}</a> <span>{VERB[play.kind]}</span></p><a className="play-repo" href={`https://github.com/${play.repo}`} target="_blank" rel="noreferrer" title={play.repo}>{play.repo}</a><p className="play-summary" title={play.summary}>{play.summary}</p><small>Observed {ago(play.at, feedNow)} ago · GitHub event {ago(play.created, feedNow)} ago</small></div>
-          <div className="public-play-points"><b>+{play.points}</b>{play.points < play.rawPoints && <small>push cap</small>}</div>
-        </li>)}</ol> : <div className="product-empty"><h3>No recent plays to show</h3><p>New sampled activity appears here after a successful check.</p></div>}
-        <p className="global-footnote product-muted">Showing up to 50 latest plays. Only public events created within {CREATION_HORIZON / OBSERVED_HOUR / 24} days enter the sample. History resets when the server restarts.</p>
+          <div className="public-play-copy"><p><a href={`https://github.com/${play.login}`} target="_blank" rel="noreferrer" title={`@${play.login}`}>@{play.login}</a> <span>{VERB[play.kind]}</span></p><a className="play-repo" href={`https://github.com/${play.repo}`} target="_blank" rel="noreferrer" title={play.repo}>{play.repo}</a><p className="play-summary" title={summaryLabel(play)}>{summaryLabel(play)}</p><small>取得 {ago(play.at, feedNow)}前 · GitHubでの発生 {ago(play.created, feedNow)}前</small></div>
+          <div className="public-play-points"><b>+{play.points}</b>{play.points < play.rawPoints && <small>プッシュ上限</small>}</div>
+        </li>)}</ol> : <div className="product-empty"><h3>表示できる最近の活動がありません</h3><p>取得に成功すると、新しい活動がここに表示されます。</p></div>}
+        <p className="global-footnote product-muted">最新の活動を最大50件表示します。過去{CREATION_HORIZON / OBSERVED_HOUR / 24}日以内の公開イベントだけを取り込みます。サーバーが再起動すると履歴はリセットされます。</p>
       </section>
     </div>
-    <footer className="global-footer"><p className="product-muted">Your room score uses a separate 72-hour window. Join to track your own activity.</p><a className="product-button" href="/join">Join the room</a>{mode !== "demo" && <button className="secondary" onClick={retry}>Retry public sample</button>}{mode === "demo" && <a className="product-button secondary" href="/global">Open the real public sample</a>}</footer>
+    <footer className="global-footer"><p className="product-muted">会場の得点は別途、過去72時間で集計します。参加すると自分の活動を記録できます。</p><a className="product-button" href="/join">会場に参加する</a>{mode !== "demo" && <button className="secondary" onClick={retry}>公開サンプルを再取得</button>}{mode === "demo" && <a className="product-button secondary" href="/global">実際の公開サンプルを見る</a>}</footer>
   </main>;
 }

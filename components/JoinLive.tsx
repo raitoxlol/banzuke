@@ -8,7 +8,7 @@ import { AGENTS, agentLabel } from "@/lib/agents";
 import { QUESTIONS, type Answers } from "@/lib/quiz";
 import { APP_INSTALL, CLI_CONNECT, CLI_PREVIEW, STEPS, completeChoice, initialJoinState, parseAnswers, parseProgress, reduceJoin, type Step } from "@/lib/onboarding";
 
-const TITLES: Record<Step, string> = { signIn: "GitHub account", agent: "Your agent", privateRepos: "Private repos", cliSetup: "CLI setup", cliConnect: "Connect CLI", finish: "Open the board" };
+const TITLES: Record<Step, string> = { signIn: "GitHubアカウント", agent: "エージェント", privateRepos: "非公開リポジトリ", cliSetup: "CLIの準備", cliConnect: "CLIを接続", finish: "番付を開く" };
 const storageKey = (login: string) => `banzuke.join.v1:${login.toLowerCase()}`;
 
 function useJoinFlow() {
@@ -43,9 +43,9 @@ function useJoinFlow() {
     try {
       const result = await join(answers ? { answers } : {});
       if (result.login.toLowerCase() === currentLogin.toLowerCase()) dispatch({ type: "success", epoch, target });
-      else dispatch({ type: "failure", epoch, target, answers, message: "Your GitHub account changed. Reload before retrying." });
+      else dispatch({ type: "failure", epoch, target, answers, message: "GitHubアカウントが変わりました。ページを再読み込みしてから、もう一度お試しください。" });
     }
-    catch { dispatch({ type: "failure", epoch, target, answers, message: answers ? "Your agent choice wasn't saved. Retry to save it." : "We couldn't put you on the board. Retry joining." }); }
+    catch { dispatch({ type: "failure", epoch, target, answers, message: answers ? "エージェントの選択を保存できませんでした。もう一度保存してください。" : "番付への登録に失敗しました。もう一度参加をお試しください。" }); }
     finally { if (current.current.epoch === epoch && current.current.login === currentLogin) current.current.busy = false; }
   }, [join, state.epoch, state.login, isAuthenticated, currentLogin]);
   useEffect(() => {
@@ -62,22 +62,22 @@ function useJoinFlow() {
   const connected = Boolean(currentLogin && fuel?.login === currentLogin && fuel.connected);
   const copy = async (command: string) => {
     const epoch = state.epoch;
-    try { await navigator.clipboard.writeText(command); if (current.current.epoch === epoch) setNotice({ epoch, text: "Copied. Run the command in your terminal." }); }
-    catch { if (current.current.epoch === epoch) setNotice({ epoch, text: "Copy failed. Select the command and copy it manually, or retry Copy." }); }
+    try { await navigator.clipboard.writeText(command); if (current.current.epoch === epoch) setNotice({ epoch, text: "コピーしました。ターミナルでコマンドを実行してください。" }); }
+    catch { if (current.current.epoch === epoch) setNotice({ epoch, text: "コピーできませんでした。コマンドを選択して手動でコピーするか、もう一度お試しください。" }); }
   };
   const authenticate = async () => {
     const epoch = state.epoch;
     try { await signIn("github", { redirectTo: "/join" }); }
-    catch { if (current.current.epoch === epoch) setNotice({ epoch, text: "GitHub sign-in couldn't start. Try Sign in with GitHub again." }); }
+    catch { if (current.current.epoch === epoch) setNotice({ epoch, text: "GitHubログインを開始できませんでした。「GitHubでログイン」をもう一度お試しください。" }); }
   };
   const evidence = (step: Step) => {
-    if (step === "signIn") return joined ? "Joined" : "Waiting";
-    if (step === "agent" && answers) return "Saved";
-    if (step === "privateRepos" && activeInstall) return "Active App";
-    if (step === "cliConnect" && connected) return "Connected";
-    if (step === "cliSetup" && state.progress.cliReady) return "Ready";
-    if (step !== "finish" && state.progress.skipped.includes(step)) return "Skipped";
-    return step === "finish" ? "Finish" : "Optional";
+    if (step === "signIn") return joined ? "参加済み" : "待機中";
+    if (step === "agent" && answers) return "保存済み";
+    if (step === "privateRepos" && activeInstall) return "App連携済み";
+    if (step === "cliConnect" && connected) return "接続済み";
+    if (step === "cliSetup" && state.progress.cliReady) return "準備完了";
+    if (step !== "finish" && state.progress.skipped.includes(step)) return "スキップ済み";
+    return step === "finish" ? "完了" : "任意";
   };
   return { state, dispatch, currentLogin, loading: isLoading || state.login !== currentLogin || (isAuthenticated && (install === undefined || fuel === undefined || (currentLogin !== null && !state.hydrated))), joined, points, answers, activeInstall, historicalApp, connected, lastSync: connected ? fuel?.lastSyncAt : null, busy: state.attempt.kind === "pending", copy, authenticate, save, evidence, notice: notice?.epoch === state.epoch ? notice.text : null };
 }
@@ -99,60 +99,60 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
     if (complete) void flow.save(complete);
   };
   return <div className="join-flow">
-    <ol className="join-progress" aria-label="Onboarding steps">
+    <ol className="join-progress" aria-label="参加の手順">
       {STEPS.map((s, index) => <li key={s}><button onClick={() => dispatch({ type: "go", step: s })} aria-current={s === step ? "step" : undefined} disabled={loading}>
         <span className="step-number">{index + 1}</span><span>{TITLES[s]}<small>{flow.evidence(s)}</small></span>
       </button></li>)}
     </ol>
     <section className="product-panel join-active" aria-labelledby="join-step-title">
-      <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>Step {STEPS.indexOf(step) + 1} of 6{step !== "signIn" && step !== "finish" ? " · Optional" : ""}</p></div>
-      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "Loading your points…" : <><strong>{points}</strong> points on the room board</>}</span><span className="join-team" style={{ color: TEAM_COLORS[teamOf(currentLogin)], fontWeight: 900 }}>You're on {teamName(currentLogin)}</span></p>}
-      {loading ? <p role="status" className="product-empty">Loading your GitHub account…</p> : <>
+      <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>手順 {STEPS.indexOf(step) + 1} / 6{step !== "signIn" && step !== "finish" ? " · 任意" : ""}</p></div>
+      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "得点を読み込み中…" : <><strong>{points}</strong>点（会場の番付）</>}</span><span className="join-team" style={{ color: TEAM_COLORS[teamOf(currentLogin)], fontWeight: 900 }}>所属：{teamName(currentLogin)}</span></p>}
+      {loading ? <p role="status" className="product-empty">GitHubアカウントを読み込み中…</p> : <>
         {step === "signIn" && <>
-          <p>Sign in to join the room. New members start a public activity import from the last 72 hours.</p>
-          {currentLogin ? <><p role="status">{joined ? "You're on the board. Your points update as public activity arrives." : busy ? "Putting you on the board…" : "Your account is signed in. Joining still needs to finish."}</p><p className="product-muted">The points above are the current room total. The import runs in the background.</p><button onClick={next} disabled={!joined || busy}>Done, choose an agent</button></> : <><button onClick={() => void flow.authenticate()}>{icon}Sign in with GitHub</button><button className="secondary" onClick={next}>Continue as a spectator</button></>}
+          <p>ログインして会場に参加しましょう。新しく参加すると、過去72時間の公開活動の取り込みが始まります。</p>
+          {currentLogin ? <><p role="status">{joined ? "番付に登録されました。公開活動が届くたびに得点が更新されます。" : busy ? "番付に登録中…" : "ログイン済みです。参加の登録はまだ完了していません。"}</p><p className="product-muted">上に表示されているのは現在の会場での合計得点です。活動の取り込みはバックグラウンドで進みます。</p><button onClick={next} disabled={!joined || busy}>次へ：エージェントを選ぶ</button></> : <><button onClick={() => void flow.authenticate()}>{icon}GitHubでログイン</button><button className="secondary" onClick={next}>観戦を続ける</button></>}
         </>}
         {step === "agent" && <>
-          <p>Pick where your commits count when they don't name an agent. Named agents in commits take priority.</p>
-          {answers && <p className="product-confirmed">Saved on your account · {agentLabel(answers.tool)}</p>}
-          {!currentLogin && <p className="product-muted">Sign in at step 1 to save a choice. You can keep exploring as a spectator.</p>}
+          <p>コミットにエージェント名がない場合の集計先を選びます。コミットに記載されたエージェント名が優先されます。</p>
+          {answers && <p className="product-confirmed">アカウントに保存済み · {answers.tool === "human" ? "手動・その他" : agentLabel(answers.tool)}</p>}
+          {!currentLogin && <p className="product-muted">選択を保存するには手順1でログインしてください。ログインせずに観戦を続けることもできます。</p>}
           {picked ? <div className="join-quiz">
-            {question ? <><p>Question {QUESTIONS.indexOf(question) + 1} of {QUESTIONS.length}</p><h3>{question.q}</h3><div className="choice-grid">{question.opts.map(([value, label]) => <button className="secondary" key={value} disabled={busy} onClick={() => chooseQuiz(question.key, value)}>{label}</button>)}</div></> : <p role="status">{busy ? "Saving your quiz answers…" : "Your quiz answers are ready to save."}</p>}
-            <button className="text-button" disabled={busy} onClick={() => setQuiz(null)}>Back to direct choice</button>
-          </div> : <><div className="choice-grid">{AGENTS.map((agent) => <button key={agent.id} className="secondary agent-choice" aria-pressed={answers?.tool === agent.id} disabled={busy || !joined} onClick={() => void flow.save(completeChoice(agent.id, answers))}><i style={{ background: agent.color }} aria-hidden="true" />{agent.label}</button>)}</div><p className="product-muted">Direct choice keeps your saved fun answers, or uses afternoon, accept all, and fix it myself.</p><button className="secondary" disabled={!joined || busy} onClick={() => setQuiz({ epoch: state.epoch, answers: {} })}>Take the four-question quiz</button></>}
-          <div className="step-actions"><button onClick={next} disabled={!answers || busy}>Done</button><button className="text-button" onClick={skip} disabled={busy}>Skip for now</button></div>
+            {question ? <><p>質問 {QUESTIONS.indexOf(question) + 1} / {QUESTIONS.length}</p><h3>{question.q}</h3><div className="choice-grid">{question.opts.map(([value, label]) => <button className="secondary" key={value} disabled={busy} onClick={() => chooseQuiz(question.key, value)}>{label}</button>)}</div></> : <p role="status">{busy ? "回答を保存中…" : "回答の準備ができました。保存してください。"}</p>}
+            <button className="text-button" disabled={busy} onClick={() => setQuiz(null)}>直接選択に戻る</button>
+          </div> : <><div className="choice-grid">{AGENTS.map((agent) => <button key={agent.id} className="secondary agent-choice" aria-pressed={answers?.tool === agent.id} disabled={busy || !joined} onClick={() => void flow.save(completeChoice(agent.id, answers))}><i style={{ background: agent.color }} aria-hidden="true" />{agent.id === "human" ? "手動・その他" : agent.label}</button>)}</div><p className="product-muted">直接選択では保存済みの回答を引き継ぎます。未回答の場合は「午後3時」「すべて承認」「自分で直す」を使用します。</p><button className="secondary" disabled={!joined || busy} onClick={() => setQuiz({ epoch: state.epoch, answers: {} })}>4問のクイズに答える</button></>}
+          <div className="step-actions"><button onClick={next} disabled={!answers || busy}>次へ</button><button className="text-button" onClick={skip} disabled={busy}>後で設定する</button></div>
         </>}
         {step === "privateRepos" && <>
-          <p>Install the GitHub App on the repositories you want to score live, including private ones.</p><p className="product-muted">Private repository names and commit messages stay off the board.</p>
-          <a className="product-button" href={APP_INSTALL} target="_blank" rel="noreferrer">Open GitHub App installation</a>
-          <p role="status" className={activeInstall ? "product-confirmed" : "product-muted"}>{activeInstall ? "Active GitHub App installation recorded for this account." : "Waiting for an active GitHub App installation for this account."}</p>
-          {historicalApp && <p>Previous GitHub App activity was recorded.{!activeInstall && " This doesn't confirm an active installation."}</p>}
-          <p className="product-muted">Keep this page open and return after installing. Opening GitHub doesn't confirm installation.{!currentLogin && " Sign in first so we can check your account."}</p>
-          <div className="step-actions"><button onClick={next} disabled={!activeInstall}>Done</button><button className="text-button" onClick={skip}>Skip for now</button></div>
+          <p>非公開リポジトリを含め、リアルタイムで得点を集計したいリポジトリにGitHub Appをインストールしてください。</p><p className="product-muted">非公開リポジトリの名前やコミットメッセージは番付に表示されません。</p>
+          <a className="product-button" href={APP_INSTALL} target="_blank" rel="noreferrer">GitHub Appのインストール画面を開く</a>
+          <p role="status" className={activeInstall ? "product-confirmed" : "product-muted"}>{activeInstall ? "このアカウントの有効なGitHub App連携を確認しました。" : "このアカウントの有効なGitHub App連携を待っています。"}</p>
+          {historicalApp && <p>過去のGitHub App経由の活動を確認しました。{!activeInstall && " 現在の連携が有効かどうかはまだ確認できていません。"}</p>}
+          <p className="product-muted">このページを開いたまま、インストール後に戻ってください。GitHubを開くだけでは連携は完了しません。{!currentLogin && " アカウントの連携を確認するため、先にログインしてください。"}</p>
+          <div className="step-actions"><button onClick={next} disabled={!activeInstall}>次へ</button><button className="text-button" onClick={skip}>後で設定する</button></div>
         </>}
         {step === "cliSetup" && <>
-          <p>Preview your local AI usage with the CLI. The browser can't check whether you've set it up.</p><p className="product-muted">Requires Node.js, GitHub CLI, and access to the private raitoxlol/banzuke repository. Browser sign-in doesn't grant repository access.</p>
-          <pre><code>{CLI_PREVIEW}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_PREVIEW)}>Copy setup command</button>
-          <p>The dry run shows what would be sent and sends nothing.</p><div className="step-actions"><button onClick={() => dispatch({ type: "ready" })}>I've run the preview</button><button className="text-button" onClick={skip}>Skip for now</button></div>
+          <p>CLIでローカルのAI使用量を確認できます。設定が完了したかどうかはブラウザから確認できません。</p><p className="product-muted">Node.js、GitHub CLI、非公開のraitoxlol/banzukeリポジトリへのアクセス権が必要です。ブラウザでログインしても、リポジトリへのアクセス権は付与されません。</p>
+          <pre><code>{CLI_PREVIEW}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_PREVIEW)}>準備コマンドをコピー</button>
+          <p>プレビューでは送信予定の内容だけを表示し、データは送信しません。</p><div className="step-actions"><button onClick={() => dispatch({ type: "ready" })}>プレビューを実行しました</button><button className="text-button" onClick={skip}>後で設定する</button></div>
         </>}
         {step === "cliConnect" && <>
-          <p>Run the CLI and approve sending your usage counts. Use the same GitHub account{currentLogin ? `, @${currentLogin}` : " as your browser sign-in"}.</p>
-          <pre><code>{CLI_CONNECT}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_CONNECT)}>Copy connection command</button>
-          <p className="product-muted">The CLI uses GITHUB_TOKEN first, then your GitHub CLI token. An environment token can select a different account. Only usage counts are sent.</p>
-          <p role="status" className={connected ? "product-confirmed" : "product-muted"}>{connected ? `CLI usage received${lastSync ? ` · Last sync ${new Date(lastSync).toLocaleString()}` : ""}.` : "Waiting for usage counts from this account."}</p>
-          {!connected && <p>No AI usage yet? A sync with no usage doesn't create a connection record. Run with <code>--watch</code> to wait for new usage, or skip and revisit later.</p>}
-          {!currentLogin && <p className="product-muted">Sign in and join at step 1 before connecting the CLI.</p>}
-          <div className="step-actions"><button onClick={next} disabled={!connected}>Done</button><button className="text-button" onClick={() => void flow.copy(CLI_CONNECT)}>Retry command</button><button className="text-button" onClick={skip}>Skip for now</button></div>
+          <p>CLIを実行し、使用量の送信を承認してください。GitHubアカウントは同じものを使用します{currentLogin ? `（@${currentLogin}）` : "（ブラウザでログインしたアカウント）"}。</p>
+          <pre><code>{CLI_CONNECT}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_CONNECT)}>接続コマンドをコピー</button>
+          <p className="product-muted">CLIはGITHUB_TOKENを優先し、なければGitHub CLIのトークンを使用します。環境変数のトークンによって別のアカウントが選ばれることがあります。送信するのは使用量だけです。</p>
+          <p role="status" className={connected ? "product-confirmed" : "product-muted"}>{connected ? `CLIの使用量を受信しました${lastSync ? ` · 最終同期 ${new Date(lastSync).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }) + " JST"}` : ""}。` : "このアカウントからの使用量の送信を待っています。"}</p>
+          {!connected && <p>AI使用量がまだない場合、使用量ゼロの同期では接続記録は作成されません。 <code>--watch</code>を付けて実行すると新しい使用量を待ち受けます。後で設定することもできます。</p>}
+          {!currentLogin && <p className="product-muted">CLIを接続する前に、手順1でログインして参加してください。</p>}
+          <div className="step-actions"><button onClick={next} disabled={!connected}>次へ</button><button className="text-button" onClick={() => void flow.copy(CLI_CONNECT)}>コマンドを再コピー</button><button className="text-button" onClick={skip}>後で設定する</button></div>
         </>}
         {step === "finish" && <>
-          <h3>{joined ? "You're on the board." : "You're ready to spectate."}</h3><p>{joined ? "Go ship something. Your agent choice and confirmed integrations stay on your account." : "Watch the room, or revisit step 1 to sign in and join."}</p>
-          <ul className="join-summary">{STEPS.slice(0, 5).map((s) => <li key={s}><span>{TITLES[s]}</span><span>{flow.evidence(s)}</span><button className="text-button" onClick={() => dispatch({ type: "go", step: s })}>Revisit</button></li>)}</ul>
-          <a href="/" className="product-button">{joined ? "Open the room board" : "Spectate the room"}</a>
+          <h3>{joined ? "番付に参加しました。" : "観戦の準備ができました。"}</h3><p>{joined ? "開発を進めて得点を積み上げましょう。選んだエージェントと確認済みの連携はアカウントに保存されます。" : "会場を観戦するか、手順1に戻ってログインして参加しましょう。"}</p>
+          <ul className="join-summary">{STEPS.slice(0, 5).map((s) => <li key={s}><span>{TITLES[s]}</span><span>{flow.evidence(s)}</span><button className="text-button" onClick={() => dispatch({ type: "go", step: s })}>設定に戻る</button></li>)}</ul>
+          <a href="/" className="product-button">{joined ? "会場の番付を開く" : "会場を観戦する"}</a>
         </>}
       </>}
-      {state.attempt.kind === "failed" && <div className="product-error" role="alert"><p>{state.attempt.message}</p><button className="secondary" onClick={retry}>Retry {state.attempt.target === "join" ? "joining" : "saving choice"}</button></div>}
+      {state.attempt.kind === "failed" && <div className="product-error" role="alert"><p>{state.attempt.message}</p><button className="secondary" onClick={retry}>{state.attempt.target === "join" ? "参加を再試行" : "選択の保存を再試行"}</button></div>}
       {flow.notice && <p role="status" className="product-notice">{flow.notice}</p>}
-      {!state.storageAvailable && <p className="product-muted">Your browser couldn't save progress. This flow still works; a reload resets navigation and skips.</p>}
+      {!state.storageAvailable && <p className="product-muted">ブラウザに進行状況を保存できませんでした。このまま続けられますが、再読み込みすると現在の手順とスキップの記録がリセットされます。</p>}
     </section>
   </div>;
 }

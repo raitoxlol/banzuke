@@ -21,7 +21,7 @@ export function Dohyo({ teams, builders, flashes, total, perMin }: {
   };
   const byId = [...teams].sort((a, b) => a.id - b.id);
   return (
-    <svg viewBox="0 0 1000 1000" className="dohyo" role="img" aria-label="Live plays by stable">
+    <svg viewBox="0 0 1000 1000" className="dohyo" role="img" aria-label="チームごとの最新の活動">
       <defs>
         <radialGradient id="core"><stop offset="0" stopColor="#5BBDBA" stopOpacity=".16" /><stop offset="1" stopColor="#5BBDBA" stopOpacity="0" /></radialGradient>
       </defs>
@@ -52,9 +52,9 @@ export function Dohyo({ teams, builders, flashes, total, perMin }: {
           <circle r={big ? 5 : 2.5} fill={color.get(p.team)} className="spark" />
         </g>;
       })}
-      <text x={C} y={C - 18} className="core-num">{total.toLocaleString("en-US")}</text>
-      <text x={C} y={C + 24} className="core-label">POINTS THIS HOUR</text>
-      <text x={C} y={C + 56} className="core-sub">{perMin.toFixed(0)} plays / min sampled</text>
+      <text x={C} y={C - 18} className="core-num">{total.toLocaleString("ja-JP")}</text>
+      <text x={C} y={C + 24} className="core-label">直近1時間の得点</text>
+      <text x={C} y={C + 56} className="core-sub">毎分{perMin.toFixed(0)}件の活動を取得</text>
     </svg>
   );
 }
