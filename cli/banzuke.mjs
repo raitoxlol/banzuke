@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Banzuke AI-fuel sync. Zero deps. Reads local Claude Code / Codex logs for token COUNTS only and posts
+// Banzuke AI-fuel sync. Zero deps. Reads local Claude Code / Codex / OpenCode / Devin CLI logs (and, opt-in, provider usage APIs) for token COUNTS only and posts
 // hourly totals {tool, input, output, cache, windowStart, windowEnd}. Prompts, code, paths and project
 // names are never read into the payload: each log line is parsed and only numeric usage fields are kept.
-import { realpathSync, readdirSync, readFileSync, statSync, writeFileSync, existsSync } from "node:fs";
+import { realpathSync, readFileSync, writeFileSync } from "node:fs";
+import { TOOLS } from "../lib/tools.mjs";
+import { LOCAL_SOURCES, API_SOURCES, apiConfigured, sqliteBackend } from "./sources.mjs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
@@ -16,48 +18,8 @@ const QUERY = "https://fantastic-lapwing-798.ap-southeast-2.convex.cloud/api/que
 const JOIN = "https://racing-charcoal-9xinp40.vercel.app/join";
 const WATCH_MS = 10 * 60_000;
 export const STABLES = ["Claude Yoake", "Codex Yoake", "Claude Hiru", "Codex Hiru", "Claude Ippatsu", "Codex Ippatsu"];
-const n = (x) => (Number.isFinite(x) && x > 0 ? Math.floor(x) : 0);
 
-function* jsonlFiles(dir, since) {
-  let ents; try { ents = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-  for (const e of ents) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) yield* jsonlFiles(p, since);
-    else if (e.name.endsWith(".jsonl")) { try { if (statSync(p).mtimeMs >= since) yield p; } catch {} }
-  }
-}
-function* lines(file) { for (const l of readFileSync(file, "utf8").split("\n")) if (l.trim()) { try { yield JSON.parse(l); } catch {} } }
-
-/** Claude Code: assistant lines carry message.usage. Streaming repeats a message, so dedupe by message.id+requestId. */
-export function claudeEvents(files) {
-  const seen = new Set(), out = [];
-  for (const f of files) for (const j of lines(f)) {
-    const u = j?.message?.usage; const at = Date.parse(j?.timestamp);
-    if (!u || !Number.isFinite(at)) continue;
-    const key = j.message.id && `${j.message.id}:${j.requestId ?? ""}`;
-    if (key) { if (seen.has(key)) continue; seen.add(key); }
-    out.push({ at, input: n(u.input_tokens), output: n(u.output_tokens), cache: n(u.cache_creation_input_tokens) + n(u.cache_read_input_tokens) });
-  }
-  return out;
-}
-
-/** Codex: event_msg payload.type "token_count", info.last_token_usage per turn. input_tokens includes cached
- *  input, so input = input - cached. Repeated events (same running total) are skipped. */
-export function codexEvents(files) {
-  const out = [];
-  for (const f of files) {
-    let prevTotal = -1;
-    for (const j of lines(f)) {
-      const p = j?.payload; if (j?.type !== "event_msg" || p?.type !== "token_count" || !p.info) continue;
-      const at = Date.parse(j.timestamp); const last = p.info.last_token_usage; const total = p.info.total_token_usage?.total_tokens;
-      if (!last || !Number.isFinite(at)) continue;
-      if (total != null) { if (total === prevTotal) continue; prevTotal = total; }
-      const cached = n(last.cached_input_tokens);
-      out.push({ at, input: Math.max(0, n(last.input_tokens) - cached), output: n(last.output_tokens), cache: cached });
-    }
-  }
-  return out;
-}
+export { claudeEvents, codexEvents, opencodeEvent, devinRowEvents, opencodeJsonEvents, opencodeRowEvents } from "./sources.mjs";
 
 /** Hourly buckets in [from, to). The server upserts per (login, tool, windowStart), so re-syncing never double counts. */
 export function buckets(tool, events, from, to) {
@@ -70,20 +32,67 @@ export function buckets(tool, events, from, to) {
   }
   return [...m.values()].sort((a, b) => a.windowStart - b.windowStart);
 }
-
-/** Everything that leaves the machine. Only these six fields, all numbers except tool. */
-export function collect({ home = homedir(), now = Date.now(), lastSync = 0 } = {}) {
+/** The six fields, in order. This is the whole payload shape. */
+const six = ({ tool, input, output, cache, windowStart, windowEnd }) => ({ tool, input, output, cache, windowStart, windowEnd });
+const windowFrom = (now, lastSync) => {
   const floor = Math.floor((now - WINDOW_HOURS * HOUR) / HOUR) * HOUR;
   // Since-last-sync: resend from the hour of the last sync (it may have been partial); 72h on first run.
-  const from = lastSync ? Math.max(floor, Math.floor(lastSync / HOUR) * HOUR) : floor;
-  const claudeDirs = [join(home, ".claude", "projects"), join(home, ".config", "claude", "projects")];
-  const codexDir = join(process.env.CODEX_HOME ?? join(home, ".codex"), "sessions");
-  const found = { claude: claudeDirs.some(existsSync), codex: existsSync(codexDir) };
-  const cf = claudeDirs.flatMap((d) => [...jsonlFiles(d, from)]);
-  const xf = [...jsonlFiles(codexDir, from)];
-  const windows = [...buckets("claude", claudeEvents(cf), from, now), ...buckets("codex", codexEvents(xf), from, now)]
-    .map(({ tool, input, output, cache, windowStart, windowEnd }) => ({ tool, input, output, cache, windowStart, windowEnd }));
-  return { found, from, windows };
+  return lastSync ? Math.max(floor, Math.floor(lastSync / HOUR) * HOUR) : floor;
+};
+
+/** Local logs -> everything that leaves the machine. found/notes are per tool id (lib/tools.mjs). */
+export function collect({ home = homedir(), now = Date.now(), lastSync = 0, env = process.env, sqlite } = {}) {
+  const from = windowFrom(now, lastSync);
+  const found = {}, notes = {}, windows = [];
+  let backend = sqlite;
+  for (const [id, src] of Object.entries(LOCAL_SOURCES)) {
+    found[id] = src.found(home, env);
+    if (!found[id]) continue;
+    if (backend === undefined) backend = sqliteBackend();
+    const { events, note } = src.read({ home, env, from, sqlite: backend });
+    if (note) notes[id] = note;
+    windows.push(...buckets(id, events, from, now).map(six));
+  }
+  return { found, notes, from, windows };
+}
+
+/** Opt-in (--api): hourly totals from provider usage APIs, for each provider whose env keys are set.
+ *  Keys are sent only to that provider. Errors are reported per provider, never thrown. */
+export async function collectApi({ now = Date.now(), lastSync = 0, env = process.env, fetch: f = globalThis.fetch } = {}) {
+  const from = windowFrom(now, lastSync);
+  const found = {}, notes = {}, windows = [];
+  await Promise.all(Object.entries(API_SOURCES).map(async ([id, src]) => {
+    if (!(found[id] = apiConfigured(id, env))) return;
+    try { windows.push(...buckets(id, await src.pull({ env, from, now, fetch: f }), from, now).map(six)); }
+    catch (e) { notes[id] = String(e?.message ?? e).replace(/(sk-|xai-)[\w-]+/g, "[key]"); }
+  }));
+  const order = Object.keys(API_SOURCES);
+  windows.sort((a, b) => order.indexOf(a.tool) - order.indexOf(b.tool) || a.windowStart - b.windowStart);
+  return { found, notes, from, windows };
+}
+
+/** --demo: bundled sample totals for the stage. No logs are read and nothing is ever sent. */
+export function demoData(now) {
+  const h = Math.floor(now / HOUR) * HOUR; const found = {}, windows = [];
+  const plan = { claude: [42e3, 9e3, 610e3], codex: [88e3, 12e3, 1.4e6], opencode: [15e3, 4e3, 120e3], devin: [6e3, 2e3, 30e3] };
+  for (const [id, [i, o, c]] of Object.entries(plan)) { found[id] = true;
+    for (let k = 6; k >= 1; k--) { const f = (k % 3) + 1; windows.push({ tool: id, input: i * f, output: o * f, cache: c * f, windowStart: h - k * HOUR, windowEnd: h - k * HOUR + HOUR }); } }
+  return { found, notes: {}, from: h - WINDOW_HOURS * HOUR, windows, demo: true };
+}
+/** What to say when there's nothing to send: zero usage in the window vs nothing new since last sync. */
+export function emptyMessage(found, lastSync) {
+  if (lastSync) return "Nothing new since last sync.";
+  const names = TOOLS.filter((t) => found[t.id]).map((t) => t.label).join("/") || "AI tool";
+  return `No ${names} usage in the last ${WINDOW_HOURS}h on this machine.`;
+}
+
+/** Local + (when asked) API, merged. */
+export async function collectAll(o) {
+  if (o.demo) return demoData(o.now ?? Date.now());
+  const local = collect(o);
+  if (!o.api) return local;
+  const api = await collectApi(o);
+  return { found: { ...local.found, ...api.found }, notes: { ...local.notes, ...api.notes }, from: local.from, windows: [...local.windows, ...api.windows] };
 }
 
 // ---------- environment probes (all failures degrade to "unknown", never crash) ----------
@@ -118,13 +127,16 @@ export function palette(on, env = process.env) {
   const truecolor = /truecolor|24bit/i.test(env.COLORTERM ?? "") || env.TERM_PROGRAM === "iTerm.app";
   const fg = (rgb, c256) => (s) => on ? `\x1b[${truecolor ? `38;2;${rgb}` : `38;5;${c256}`}m${s}\x1b[39m` : String(s);
   const sgr = (a, b) => (s) => on ? `\x1b[${a}m${s}\x1b[${b}m` : String(s);
-  return { teal: fg("91;189;186", 73), claude: fg("227;154;107", 173), codex: fg("111;168;220", 74), green: fg("111;191;142", 72), red: fg("224;122;138", 168), bold: sgr(1, 22), dim: sgr(2, 22), on };
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const c256 = ([r, g, b]) => 16 + 36 * Math.round(r / 51) + 6 * Math.round(g / 51) + Math.round(b / 51);
+  const tool = Object.fromEntries(TOOLS.map((t) => [t.id, fg(hex(t.color).join(";"), c256(hex(t.color)))]));
+  return { tool, teal: fg("91;189;186", 73), claude: tool.claude, codex: tool.codex, green: fg("111;191;142", 72), red: fg("224;122;138", 168), bold: sgr(1, 22), dim: sgr(2, 22), on };
 }
 const fmt = (x) => x.toLocaleString("en-US");
 export const short = (x) => x >= 1e9 ? (x / 1e9).toFixed(1) + "B" : x >= 1e6 ? (x / 1e6).toFixed(1) + "M" : x >= 1e3 ? (x / 1e3).toFixed(1) + "k" : String(x);
 export function totalsOf(windows) {
-  const t = { claude: { input: 0, output: 0, cache: 0 }, codex: { input: 0, output: 0, cache: 0 } };
-  for (const w of windows) { const x = t[w.tool]; x.input += w.input; x.output += w.output; x.cache += w.cache; }
+  const t = Object.fromEntries(TOOLS.map((x) => [x.id, { input: 0, output: 0, cache: 0 }]));
+  for (const w of windows) { const x = t[w.tool]; if (!x) continue; x.input += w.input; x.output += w.output; x.cache += w.cache; }
   return t;
 }
 const sum = (x) => x.input + x.output + x.cache;
@@ -132,11 +144,15 @@ export function bar(v, max, width, c) { const f = max ? Math.max(v ? 1 : 0, Math
 export function wordmark(c) {
   return ["", c.teal(c.bold("  ┏┓ ┏━┓┏┓╻╺━┓╻ ╻╻┏ ┏━╸")) , c.teal(c.bold("  ┣┻┓┣━┫┃┗┫┏━┛┃ ┃┣┻┓┣╸ ")) + "   " + c.teal(c.bold("番付")), c.teal(c.bold("  ┗━┛╹ ╹╹ ╹┗━╸┗━┛╹ ╹┗━╸")) + "   " + c.dim("AI fuel sync"), ""].join("\n");
 }
-export function toolBars(windows, found, c) {
-  const t = totalsOf(windows); const max = Math.max(sum(t.claude), sum(t.codex));
-  return [["claude", "Claude Code", c.claude], ["codex", "Codex", c.codex]].map(([k, label, col]) =>
-    found[k] ? `  ${col(label.padEnd(12))} ${col(bar(sum(t[k]), max, 24, c))} ${c.bold(short(sum(t[k])).padStart(7))} ${c.dim(`in ${short(t[k].input)} · out ${short(t[k].output)} · cache ${short(t[k].cache)}`)}`
-             : `  ${c.dim(label.padEnd(12) + " no logs on this machine")}`).join("\n");
+/** One bar per tool that was found (local logs on disk, or API keys set), from the registry. */
+export function toolBars(windows, found, c, notes = {}) {
+  const t = totalsOf(windows); const shown = TOOLS.filter((x) => found[x.id] != null);
+  const max = Math.max(0, ...shown.map((x) => sum(t[x.id])));
+  return shown.map(({ id, label }) => { const col = c.tool[id], v = t[id];
+    if (!found[id]) return `  ${c.dim(label.padEnd(13) + (API_SOURCES[id] ? " no API key set" : " no logs on this machine"))}`;
+    const line = `  ${col(label.padEnd(13))} ${col(bar(sum(v), max, 24, c))} ${c.bold(short(sum(v)).padStart(7))} ${c.dim(`in ${short(v.input)} · out ${short(v.output)} · cache ${short(v.cache)}`)}`;
+    return notes[id] ? `${line}\n  ${" ".repeat(13)} ${c.red("! " + notes[id])}` : line;
+  }).join("\n");
 }
 export function payloadPreview(windows, c, full = false) {
   if (!windows.length) return c.dim("  (nothing new since last sync)");
@@ -193,22 +209,30 @@ const HELP = `banzuke — share AI token totals (counts only) with the Banzuke r
   --watch             keep running, resync every 10 min
   --full              ignore last sync, resend the whole 72h window
   --onboard           show the first-run walkthrough again
+  --api               also pull hourly totals from provider usage APIs with your own admin keys:
+                        ANTHROPIC_ADMIN_KEY, OPENAI_ADMIN_KEY, XAI_MANAGEMENT_KEY + XAI_TEAM_ID
+                        (keys go only to that provider; also on with BANZUKE_API=1)
+  --demo              sample totals for showing the TUI on stage (reads no logs, never sends)
   --home DIR          read logs under DIR instead of ~
+
+Sources: Claude Code (~/.claude/projects), Codex (~/.codex/sessions), OpenCode (~/.local/share/opencode,
+SQLite or legacy JSON), Devin CLI (~/.local/share/devin/cli/sessions.db). SQLite sources need Node >= 22.5
+or the sqlite3 binary. API totals overlap with local logs if those tools used the same keys.
   --endpoint URL      post somewhere else (testing)`;
 
 // ---------- plain mode: line-oriented, no escapes; the CI / pipe / --yes path ----------
 async function plain(o) {
   const c = palette(false);
-  const { found, from, windows } = collect({ home: o.home, now: o.now, lastSync: o.lastSync });
-  if (!found.claude && !found.codex) { console.log("No Claude Code (~/.claude/projects) or Codex (~/.codex/sessions) logs found. Nothing to send."); return 0; }
+  const { found, notes, from, windows } = await collectAll(o);
+  if (!Object.values(found).some(Boolean)) { console.log(`No AI tool logs found (${Object.values(LOCAL_SOURCES).map((x) => x.where).join(", ")}). Nothing to send.`); return 0; }
   const t = totalsOf(windows);
   console.log(`Window: ${new Date(from).toISOString()} -> ${new Date(o.now).toISOString()} (${windows.length} hourly totals)`);
-  for (const [k, label] of [["claude", "Claude Code"], ["codex", "Codex"]])
-    console.log(`  ${label.padEnd(12)} ${found[k] ? `input ${fmt(t[k].input)}  output ${fmt(t[k].output)}  cache ${fmt(t[k].cache)}` : "(no logs)"}`);
+  for (const { id: k, label } of TOOLS) if (found[k] != null)
+    console.log(`  ${label.padEnd(13)} ${found[k] ? `input ${fmt(t[k].input)}  output ${fmt(t[k].output)}  cache ${fmt(t[k].cache)}` : API_SOURCES[k] ? "(no API key)" : "(no logs)"}${notes[k] ? `  ! ${notes[k]}` : ""}`);
   console.log("\nExactly this will be sent (token counts only, no prompts, code, paths or project names):");
   console.log(JSON.stringify({ windows }, null, 1));
-  if (!windows.length) { console.log("Nothing new since last sync."); return 0; }
-  if (o.dry) { console.log("Dry run: nothing sent."); return 0; }
+  if (!windows.length) { console.log(emptyMessage(found, o.lastSync) + (o.watch ? "" : " Run with --watch to wait for new usage.")); return 0; }
+  if (o.dry || o.demo) { console.log(o.demo ? "Demo: sample data, nothing sent." : "Dry run: nothing sent."); return 0; }
   if (!o.yes) {
     if (!process.stdin.isTTY) { console.log("Not sent (no terminal to confirm). Re-run with --yes to send."); return 0; }
     if (!/^y(es)?$/i.test((await ask("\nSend to Banzuke? [y/N] ")).trim())) { console.log("Not sent."); return 0; }
@@ -231,12 +255,12 @@ async function tui(o) {
   const login = await ghLogin(token);
   const player = await roomPlayer(login);
   sp.stop();
-  const { found, from, windows } = collect({ home: o.home, now: o.now, lastSync: o.lastSync });
+  const { found, notes, from, windows } = await collectAll(o);
   const ok = (b) => b ? c.green("✔") : c.red("✘");
 
   if (onboard) {
     out(wordmark(c));
-    out(`  ${c.bold("Banzuke")} counts how much AI fuel your stable burns: Claude Code vs Codex tokens,`);
+    out(`  ${c.bold("Banzuke")} counts how much AI fuel your stable burns: Claude Code, Codex, OpenCode, Devin…`);
     out(`  summed per hour from your local logs. It's a side stat; it never changes your shipping score.`);
     out("");
     out(`  ${c.teal("Privacy")}  Only numbers leave this machine: tool, input/output/cache token counts and the hour.`);
@@ -249,19 +273,34 @@ async function tui(o) {
   const roomLine = player ? `${ok(true)} Room       in ${c.bold(STABLES[player.team] ?? "a stable")}` : player === false ? `${ok(false)} Room       not in the room yet ${c.dim("→ join at")} ${c.teal(JOIN)} ${c.dim("first")}` : `${c.dim("·")} Room       ${c.dim("couldn't check (offline?) — the server will verify on send")}`;
   if (onboard) {
     out("  " + ghLine); out("  " + roomLine);
-    out(`  ${ok(found.claude)} Claude Code ${found.claude ? "logs found" : c.dim("no ~/.claude/projects")}`);
-    out(`  ${ok(found.codex)} Codex       ${found.codex ? "logs found" : c.dim("no ~/.codex/sessions")}`);
+    for (const { id, label } of TOOLS) {
+      const local = LOCAL_SOURCES[id], api = API_SOURCES[id];
+      if (local) out(`  ${ok(found[id])} ${label.padEnd(13)} ${found[id] ? (notes[id] ? c.red(notes[id]) : "logs found") : c.dim("no " + local.where)}`);
+      else if (o.api) out(`  ${found[id] ? ok(true) : c.dim("·")} ${label.padEnd(13)} ${found[id] ? (notes[id] ? c.red(notes[id]) : "usage API") : c.dim("set " + api.env.join(" + ") + " — " + api.hint)}`);
+    }
+    if (!o.api) out(`  ${c.dim("·")} ${"APIs".padEnd(13)} ${c.dim("off · run with --api to add Anthropic / OpenAI / xAI usage from your admin keys")}`);
     out("");
   } else if (!login || player === false) { out("  " + ghLine); if (login) out("  " + roomLine); }
   else out(`  ${c.dim("@" + login + " · " + (player ? STABLES[player.team] : "room unverified"))}`);
 
-  if (!found.claude && !found.codex) { out(`\n  No Claude Code or Codex logs on this machine, nothing to send.`); saveState({ ...st, onboarded: true }); return 0; }
+  if (!Object.values(found).some(Boolean)) { out(`\n  No AI tool logs on this machine, nothing to send.`); saveState({ ...st, onboarded: true }); return 0; }
   out(`\n  ${c.bold("Last " + Math.round((o.now - from) / HOUR) + "h")} ${c.dim(`(${windows.length} hourly totals${o.lastSync ? ", since last sync" : ""})`)}`);
-  out(toolBars(windows, found, c));
+  out(toolBars(windows, found, c, notes));
   if (onboard || o.dry) { out(`\n  ${c.bold("Exactly this will be sent")}`); out(payloadPreview(windows, c, o.full)); }
-  if (!windows.length) { out(`\n  ${c.dim("Nothing new since last sync.")}`); saveState({ ...st, onboarded: true }); return o.watch ? watch(o, c, token) : 0; }
+  if (!windows.length) {
+    saveState({ ...st, onboarded: true });
+    out(`\n  ${emptyMessage(found, o.lastSync)}`);
+    if (o.watch) return watch(o, c, token);
+    out(c.dim("  Leave it watching and it'll sync new usage every 10 min as you work."));
+    out("");
+    const pick = await menu([
+      ...(login && player !== false ? [{ label: "Watch for new usage", value: "watch", key: "w", hint: "resync every 10 min, Ctrl-C to stop" }] : []),
+      { label: "Quit", value: "quit", key: "q" },
+    ], c);
+    return pick === "watch" ? watch(o, c, token) : 0;
+  }
   if (o.dry) { out(`\n  ${c.dim("Dry run: nothing sent.")}`); return 0; }
-  const blocked = !login || player === false;
+  const blocked = !o.demo && (!login || player === false);
   out("");
   const choice = await menu([
     ...(blocked ? [] : [{ label: o.watch ? "Send & keep syncing" : "Send", value: "send", key: "s", hint: "post these counts to the board" }]),
@@ -270,6 +309,7 @@ async function tui(o) {
   ], c);
   saveState({ ...loadState(), onboarded: true });
   if (choice === "quit") { out(c.dim("  Not sent.")); return 0; }
+  if (o.demo && choice === "send") { out(`  ${c.green("✔")} ${c.dim("Demo: this is where it would post the counts. Nothing sent.")}`); out(`  ${c.teal("Fuel")}    #3 of 41 burners · ${short(windows.reduce((a, w) => a + sum(w), 0))} tokens in the last 72h ${c.dim("(sample)")}`); return 0; }
   if (choice === "dry") { out(""); out(payloadPreview(windows, c, true)); out(c.dim("\n  Dry run: nothing sent.")); return 0; }
   const s2 = spinner("sending…", c); const r = await send(windows, token, o.endpoint);
   if (!r.ok) { s2.stop(`  ${c.red("✘")} ${rejectMsg(r)}`); return 1; }
@@ -284,6 +324,7 @@ async function tui(o) {
 
 /** --watch: resync every 10 min on one live-updating line. Sends without re-asking (you opted in with --watch). */
 async function watch(o, c, token) {
+  if (o.demo) { console.log(c.dim("  Demo mode doesn't watch or send.")); return 0; }
   const tty = c.on; const line = (s) => tty ? process.stdout.write(`\r\x1b[2K  ${s}`) : console.log(s);
   let next = Date.now() + WATCH_MS, last = "waiting for first resync";
   const tick = tty ? setInterval(() => { const s = Math.max(0, Math.round((next - Date.now()) / 1000)); line(`${c.teal("◉")} watching · ${last} · next sync in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} ${c.dim("(Ctrl-C to stop)")}`); }, 1000) : null;
@@ -291,7 +332,7 @@ async function watch(o, c, token) {
   if (!tty) console.log(`Watching: resync every ${WATCH_MS / 60000} min.`);
   for (;;) {
     await new Promise((r) => setTimeout(r, Math.max(0, next - Date.now())));
-    const now = Date.now(); const { windows } = collect({ home: o.home, now, lastSync: loadState().lastSync ?? 0 });
+    const now = Date.now(); const { windows } = await collectAll({ ...o, now, lastSync: loadState().lastSync ?? 0 });
     const tot = windows.reduce((a, w) => a + sum(w), 0);
     if (windows.length) {
       try { const r = await send(windows, token, o.endpoint); if (r.ok) saveState({ ...loadState(), lastSync: now }); last = r.ok ? `${new Date(now).toLocaleTimeString()} synced ${short(tot)} tokens` : `${new Date(now).toLocaleTimeString()} ${rejectMsg(r)}`; }
@@ -308,7 +349,7 @@ export async function main(argv) {
   const st = loadState();
   const o = {
     home: val("--home") ?? homedir(), endpoint: val("--endpoint"), dry: has("--dry-run"), yes: has("--yes"), full: has("--full"),
-    watch: has("--watch"), onboard: has("--onboard"),
+    watch: has("--watch"), onboard: has("--onboard"), api: has("--api") || process.env.BANZUKE_API === "1", demo: has("--demo"),
     now: val("--now") ? Date.parse(val("--now")) : Date.now(), // --now: fixed clock for tests/demos
     lastSync: has("--full") ? 0 : st.lastSync ?? 0,
   };

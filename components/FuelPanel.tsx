@@ -1,19 +1,22 @@
 "use client";
-// AI fuel: Claude Code vs Codex token tug-of-war + top burners. Data: api.fuel.totals (opt-in CLI, counts only).
+// AI fuel: Claude vs Codex headline, a multi-segment bar across every tool in the registry, top burners.
+// Data: api.fuel.totals (opt-in CLI, counts only). Tools, labels and colors come from lib/tools.mjs.
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ROOM_STABLES } from "@/lib/quiz";
+import { TOOLS } from "@/lib/tools.mjs";
 
-const CLAUDE = "#E39A6B", CODEX = "#6FA8DC";
+const CLAUDE = TOOLS.find((t) => t.id === "claude")!.color, CODEX = TOOLS.find((t) => t.id === "codex")!.color;
+const colorOf = new Map(TOOLS.map((t) => [t.id, t.color]));
 export const short = (n: number) => n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : `${n}`;
 const CMD = "npx github:raitoxlol/banzuke";
 
 export function FuelPanel({ top = 5 }: { top?: number }) {
   const d = useQuery(api.fuel.totals);
   if (!d) return null;
-  const { claude, codex } = d.tools;
-  const sum = claude + codex;
-  const pct = sum ? (claude / sum) * 100 : 50;
+  const tools = d.tools as Record<string, number>;
+  const sum = TOOLS.reduce((a, t) => a + (tools[t.id] ?? 0), 0);
+  const live = TOOLS.filter((t) => (tools[t.id] ?? 0) > 0);
   const color = new Map(ROOM_STABLES.map((s) => [s.id, s.color]));
   return (
     <section style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, display: "grid", gap: 12 }}>
@@ -22,13 +25,18 @@ export function FuelPanel({ top = 5 }: { top?: number }) {
         <span className="muted small num">{short(sum)}</span>
       </header>
       <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600 }}>
-        <span style={{ color: CLAUDE }}>Claude Code <span className="num">{short(claude)}</span></span>
-        <span style={{ color: CODEX }}><span className="num">{short(codex)}</span> Codex</span>
+        <span style={{ color: CLAUDE }}>Claude <span className="num">{short(d.sides.claude)}</span></span>
+        <span style={{ color: CODEX }}><span className="num">{short(d.sides.codex)}</span> Codex</span>
       </div>
-      <div aria-label={`Claude Code ${pct.toFixed(0)}%`} style={{ position: "relative", height: 18, borderRadius: 9, overflow: "hidden", background: CODEX }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: CLAUDE, transition: "width .8s cubic-bezier(.2,.8,.2,1)" }} />
-        <div style={{ position: "absolute", left: "50%", top: -2, bottom: -2, width: 2, background: "var(--bg)" }} />
+      <div role="img" aria-label={live.map((t) => `${t.label} ${((tools[t.id] / (sum || 1)) * 100).toFixed(0)}%`).join(", ") || "no fuel yet"}
+        style={{ display: "flex", height: 18, borderRadius: 9, overflow: "hidden", background: "var(--border)" }}>
+        {live.map((t) => <div key={t.id} title={`${t.label} ${short(tools[t.id])}`} style={{ width: `${(tools[t.id] / sum) * 100}%`, background: t.color, transition: "width .8s cubic-bezier(.2,.8,.2,1)" }} />)}
       </div>
+      {live.length ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px" }} className="small">
+          {live.map((t) => <span key={t.id}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: t.color, marginRight: 6 }} />{t.label} <span className="num muted">{short(tools[t.id])}</span></span>)}
+        </div>
+      ) : null}
       {d.players.length ? (
         <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
           {d.players.slice(0, top).map((p, i) => (
@@ -36,7 +44,7 @@ export function FuelPanel({ top = 5 }: { top?: number }) {
               <span className="muted small num">{i + 1}</span>
               {p.avatar ? <img src={p.avatar} alt="" width={22} height={22} style={{ borderRadius: "50%", outline: `2px solid ${color.get(p.team)}` }} /> : <span />}
               <span>@{p.login}</span>
-              <span className="num" style={{ color: p.claude >= p.codex ? CLAUDE : CODEX }}>{short(p.total)}</span>
+              <span className="num" style={{ color: colorOf.get(p.top) }}>{short(p.total)}</span>
             </li>
           ))}
         </ol>

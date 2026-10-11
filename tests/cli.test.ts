@@ -31,7 +31,7 @@ test("window: 72h cap and since-last-sync", () => {
 
 test("missing dirs: nothing found, nothing sent", () => {
   const r = collect({ home: join(home, "nope"), now });
-  assert.deepEqual(r.found, { claude: false, codex: false });
+  assert.ok(Object.values(r.found).every((x) => x === false));
   assert.deepEqual(r.windows, []);
 });
 

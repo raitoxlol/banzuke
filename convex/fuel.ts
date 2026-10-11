@@ -1,8 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { summarize, FUEL_HOURS, HOUR } from "../lib/fuel";
-
-const tool = v.union(v.literal("claude"), v.literal("codex"));
+import { toolValidator as tool } from "./tools";
 
 /** Upsert per (login, tool, windowStart): re-syncing an hour replaces it, never double counts. */
 export const record = internalMutation({
@@ -20,7 +19,7 @@ export const record = internalMutation({
   },
 });
 
-/** Claude Code vs Codex totals, per player and per stable, last 72h. Team is read live from players. */
+/** Per-tool totals (+ Claude vs Codex headline), per player and per stable, last 72h. Team is read live from players. */
 export const totals = query({
   args: {},
   handler: async (ctx) => {

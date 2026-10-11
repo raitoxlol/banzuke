@@ -1,4 +1,5 @@
 import { defineSchema, defineTable } from "convex/server";
+import { toolValidator } from "./tools";
 import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
@@ -29,7 +30,7 @@ export default defineSchema({
   }).index("by_key", ["dedupeKey"]).index("by_at", ["at"]).index("by_login_at", ["login", "at"]),
   // AI fuel (opt-in CLI): hourly token totals per tool. Counts only; never affects score.
   tokens: defineTable({
-    login: v.string(), team: v.number(), tool: v.union(v.literal("claude"), v.literal("codex")),
+    login: v.string(), team: v.number(), tool: toolValidator,
     input: v.number(), output: v.number(), cache: v.number(), windowStart: v.number(), windowEnd: v.number(), syncedAt: v.number(),
   }).index("by_key", ["login", "tool", "windowStart"]).index("by_window", ["windowStart"]),
 });

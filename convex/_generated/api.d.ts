@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as fuel from "../fuel.js";
 import type * as http from "../http.js";
 import type * as room from "../room.js";
+import type * as tools from "../tools.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   fuel: typeof fuel;
   http: typeof http;
   room: typeof room;
+  tools: typeof tools;
 }>;
 
 /**

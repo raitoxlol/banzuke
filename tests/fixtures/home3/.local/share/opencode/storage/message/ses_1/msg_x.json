@@ -1,0 +1,1 @@
+{"id":"msg_x","sessionID":"ses_1","role":"assistant","modelID":"SECRET-model","path":{"cwd":"/Users/yuki/stealth"},"time":{"created":1791684600000},"tokens":{"input":10,"output":4,"reasoning":1,"cache":{"read":20,"write":2}}}

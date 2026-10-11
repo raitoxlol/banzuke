@@ -14,7 +14,7 @@ test("gate keeps only the six fields; extra text is dropped", () => {
 });
 
 test("gate rejects garbage", () => {
-  for (const bad of [{ ...w, tool: "gpt" }, { ...w, input: -1 }, { ...w, output: 1.5 }, { ...w, cache: "9" },
+  for (const bad of [{ ...w, tool: "gpt" }, { ...w, tool: "toString" }, { ...w, input: -1 }, { ...w, output: 1.5 }, { ...w, cache: "9" },
     { ...w, windowStart: h + 1, windowEnd: h + 1 + HOUR }, { ...w, windowEnd: h + 2 * HOUR },
     { ...w, windowStart: h - 80 * HOUR, windowEnd: h - 79 * HOUR }, { ...w, windowStart: h + 2 * HOUR, windowEnd: h + 3 * HOUR }])
     assert.throws(() => cleanWindows({ windows: [bad] }, now), JSON.stringify(bad));
@@ -26,7 +26,7 @@ test("summarize: tools, players, stables", () => {
     { ...w, tool: "claude", login: "a", team: 0 }, { ...w, tool: "codex", login: "b", team: 1, input: 100 },
     { ...w, tool: "codex", login: "a", team: 0 },
   ] as any);
-  assert.deepEqual(s.tools, { claude: 6, codex: 111 });
+  assert.equal(s.tools.claude, 6); assert.equal(s.tools.codex, 111); assert.deepEqual(s.sides, { claude: 6, codex: 111 });
   assert.deepEqual(s.players.map((p) => [p.login, p.total]), [["b", 105], ["a", 12]]);
   assert.deepEqual(s.stables, [{ team: 1, total: 105 }, { team: 0, total: 12 }]);
 });
