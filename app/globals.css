@@ -207,3 +207,6 @@ aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .room .room-feed { position: static; width: 100%; }
 .room-feed li.priv .repo { font-style: italic; }
 @media (max-width: 1500px) { .qr-code { width: min(30vh, 280px); } .qr { gap: 20px; } }
+.quiz h2 { margin: 4px 0 12px; }
+.quiz-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.link-btn { background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }

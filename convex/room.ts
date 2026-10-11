@@ -3,7 +3,8 @@ import { internalAction, internalMutation, mutation, query } from "./_generated/
 import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx } from "./_generated/server";
-import { kind } from "./schema";
+import { kind, answersV } from "./schema";
+import { sortIntoStable, smallest } from "../lib/quiz";
 import { assertClean, fetchPublicEvents, fromPublicEvents, toRow, type Row, BACKFILL_HOURS } from "../lib/ingest";
 import { MAX_PUSH_POINTS_PER_HOUR } from "../lib/scoring";
 
@@ -22,10 +23,10 @@ async function put(ctx: MutationCtx, r: Row) {
   return true;
 }
 
-/** Signed-in user joins the room: drafted into the smallest stable, then a 72h backfill is scheduled. */
+/** Signed-in user joins the room: sorted by quiz answers (or smallest stable if skipped), then a 72h backfill. */
 export const join = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { answers: v.optional(answersV) },
+  handler: async (ctx, { answers }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("not signed in");
     const user = await ctx.db.get(userId);
@@ -35,8 +36,8 @@ export const join = mutation({
     if (have) return { login, team: have.team, fresh: false };
     const sizes = await Promise.all(Array.from({ length: STABLES }, (_, t) =>
       ctx.db.query("players").withIndex("by_team", (q) => q.eq("team", t)).collect().then((r) => r.length)));
-    const team = sizes.indexOf(Math.min(...sizes));
-    await ctx.db.insert("players", { login, userId, avatar: user.image ?? "", team, joinedAt: Date.now() });
+    const team = answers ? sortIntoStable(answers, sizes) : smallest(sizes);
+    await ctx.db.insert("players", { login, userId, avatar: user.image ?? "", team, joinedAt: Date.now(), answers });
     await ctx.scheduler.runAfter(0, internal.room.backfill, { login, team });
     return { login, team, fresh: true };
   },
@@ -84,7 +85,7 @@ export const board = query({
       ctx.db.query("plays").withIndex("by_at", (q) => q.gte("at", since)).order("desc").take(4000),
     ]);
     return {
-      players: players.map((p) => ({ login: p.login, avatar: p.avatar, team: p.team })),
+      players: players.map((p) => ({ login: p.login, avatar: p.avatar, team: p.team, answers: p.answers })),
       plays: plays.map(({ login, team, kind, points, at, private: priv, repo, summary, _id }) =>
         ({ id: _id as string, login, team, kind, points, at, private: priv, repo, summary })),
     };

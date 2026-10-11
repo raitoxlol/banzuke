@@ -2,6 +2,10 @@ import { defineSchema, defineTable } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
+export const answersV = v.object({
+  tool: v.union(v.literal("claude"), v.literal("codex")), hour: v.union(v.literal("3am"), v.literal("3pm")),
+  indent: v.union(v.literal("tabs"), v.literal("spaces")), friday: v.union(v.literal("yes"), v.literal("no")),
+});
 export const kind = v.union(v.literal("push"), v.literal("pr_merged"), v.literal("release"));
 
 export default defineSchema({
@@ -15,6 +19,7 @@ export default defineSchema({
   }).index("email", ["email"]),
   players: defineTable({
     login: v.string(), userId: v.optional(v.id("users")), avatar: v.string(), team: v.number(), joinedAt: v.number(),
+    answers: v.optional(answersV), // sign-up quiz (lib/quiz.ts); absent = skipped
   }).index("by_login", ["login"]).index("by_team", ["team"]),
   // Shape owned by lib/ingest.ts (Row). Private rows: repo === "" && summary === "".
   plays: defineTable({

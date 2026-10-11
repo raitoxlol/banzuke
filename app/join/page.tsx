@@ -1,7 +1,7 @@
 "use client";
 import { BRAND } from "@/lib/brand";
 import dynamic from "next/dynamic";
-import { HEYA_STABLES } from "@/lib/firehose";
+import { ROOM_STABLES as HEYA_STABLES } from "@/lib/quiz";
 import { POINTS } from "@/lib/scoring";
 import { hasConvex } from "@/lib/convex";
 
@@ -23,7 +23,7 @@ export default function Join() {
       <section className="join-card">
         <span className="jp-mark" aria-hidden>番付</span>
         <h1>Get on the board.</h1>
-        <p className="lede">Sign in with GitHub. You get drafted into the smallest stable. Your public plays from the last 72 hours count right away, and repos with the GitHub App score live, private ones included, without showing their names.</p>
+        <p className="lede">Sign in with GitHub. Answer four quick questions and they sort you into a stable: Team Claude Code or Team Codex (skip and you go to the smallest). Your public plays from the last 72 hours count right away, and repos with the GitHub App score live, private ones included, without showing their names.</p>
 
         {live ? <JoinLive icon={ICON} /> : <button disabled>{ICON}Sign in with GitHub</button>}
         {!live && <p className="muted small">Demo mode. Sign-in turns on once Convex is configured (see GO-LIVE.md).</p>}

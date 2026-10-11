@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { BRAND } from "@/lib/brand";
-import { HEYA_STABLES } from "@/lib/firehose";
+import { ROOM_STABLES as HEYA_STABLES, side, whyTag, type Answers } from "@/lib/quiz";
 import { rankOf } from "@/lib/board";
 import { playLabel } from "@/lib/ingest";
 import { Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
 
 export interface RoomData {
-  players: { login: string; avatar: string; team: number }[];
+  players: { login: string; avatar: string; team: number; answers?: Answers }[];
   plays: { id: string; login: string; team: number; kind: "push" | "pr_merged" | "release"; points: number; at: number; private: boolean; repo: string; summary: string }[];
 }
 const VERB = { push: "pushed to", pr_merged: "merged in", release: "released" } as const;
@@ -28,6 +28,8 @@ export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
   teams.sort((a, b) => b.score - a.score);
   const color = new Map(HEYA_STABLES.map((s) => [s.id, s.color]));
   const name = new Map(HEYA_STABLES.map((s) => [s.id, s.name]));
+  const why = new Map(data.players.map((p) => [p.login, whyTag(p.answers)]));
+  const claude = data.players.filter((p) => side(p.team) === "Claude Code").length;
   const top = teams[0]?.score || 1;
   const hour = data.plays.filter((p) => now - p.at < 3600_000);
   const latest = data.plays[0];
@@ -47,7 +49,7 @@ export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
 
       <section className="counters">
         {([
-          ["Builders in the room", data.players.length, "signed up"],
+          ["Builders in the room", data.players.length, `Claude Code ${claude} · Codex ${data.players.length - claude}`],
           ["Plays", data.plays.length, "last 72h"],
           ["Points", data.plays.reduce((s, p) => s + p.points, 0), "last 72h"],
           ["Last hour", hour.length, "plays"],
@@ -90,7 +92,7 @@ export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
               <li key={b.login} style={{ transform: `translateY(calc(${i} * var(--brow)))`, ["--team" as string]: color.get(b.team) }}>
                 <span className="b-rank num">{i + 1}</span>
                 {avatar.get(b.login) ? <img src={avatar.get(b.login)} alt="" /> : <span className="b-av" />}
-                <span className="b-name">@{b.login}<small className="muted">{rankOf(i)[1]} · {name.get(b.team)}</small></span>
+                <span className="b-name">@{b.login}<small className="muted">{rankOf(i)[1]} · {name.get(b.team)}{why.get(b.login) ? ` · ${why.get(b.login)}` : ""}</small></span>
                 <span className="b-score"><Count value={b.score} /></span>
               </li>
             ))}
