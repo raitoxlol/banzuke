@@ -28,7 +28,7 @@ export default function Join() {
         {live ? <JoinLive icon={ICON} /> : <button disabled>{ICON}Sign in with GitHub</button>}
         {!live && <p className="muted small">Demo mode. Sign-in turns on once Convex is configured (see GO-LIVE.md).</p>}
 
-        <h2>Scoring</h2>
+        <h2 id="scoring">Scoring</h2>
         <ul className="rules">
           {RULES.map(([k, p, note]) => (
             <li key={k}><b className="num">+{p}</b><span>{k}</span><span className="muted small">{note}</span></li>
