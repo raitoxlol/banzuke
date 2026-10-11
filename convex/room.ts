@@ -104,3 +104,14 @@ export const addPlayer = internalMutation({
     return t;
   },
 });
+
+/** Host tool: remove a player and their plays (`npx convex run room:removePlayer '{"login":"x"}'`). */
+export const removePlayer = internalMutation({
+  args: { login: v.string() },
+  handler: async (ctx, { login }) => {
+    for (const p of await ctx.db.query("players").withIndex("by_login", (q) => q.eq("login", login)).collect()) await ctx.db.delete(p._id);
+    const plays = await ctx.db.query("plays").withIndex("by_login_at", (q) => q.eq("login", login)).collect();
+    for (const p of plays) await ctx.db.delete(p._id);
+    return plays.length;
+  },
+});

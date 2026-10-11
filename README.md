@@ -7,28 +7,17 @@ Teams of builders compete live on what they ship. Sign in with GitHub, get draft
 ## Run it now (demo mode)
 
 ```bash
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
-Open http://localhost:3000. With no Supabase keys, the page runs in **demo mode** with fake plays, so you can work on the broadcast UI right away.
+No `NEXT_PUBLIC_CONVEX_URL` = demo mode (fake room incl. private plays). With Convex: `npx convex dev` in a second terminal. Going live: see **GO-LIVE.md**. Tests: `npm test` (private-repo stripping, backfill, dedupe).
 
-## Go live (about 15 minutes)
+## How it works
 
-1. **Supabase**: create a project, run `supabase/schema.sql` in the SQL editor, and turn on the **GitHub** auth provider (Authentication → Providers). Copy the URL, anon key and service role key.
-2. **Env**: `cp .env.example .env.local` and fill it in. Pick any long random `GITHUB_WEBHOOK_SECRET` and `PULSE_ADMIN_TOKEN`.
-3. **Deploy** to Vercel with the same env vars.
-4. **GitHub App**: create one (Settings → Developer settings → GitHub Apps) using the values in `github-app/manifest.json`. Webhook URL: `https://<your-app>/api/github/webhook`. Secret: your `GITHUB_WEBHOOK_SECRET`. Permissions: Contents read, Metadata read, Pull requests read. Events: Push, Pull request, Release.
-5. **Play**: open `/join`, sign in with GitHub, then install the GitHub App on the repos you want to count.
-6. **Commentator**: call `POST /api/commentary` with `Authorization: Bearer $PULSE_ADMIN_TOKEN` every few minutes (Vercel cron, GitHub Actions schedule, or Hermes). It writes one Grok line from the last 15 minutes of plays.
-
-Test the webhook locally without GitHub:
-
-```bash
-GITHUB_WEBHOOK_SECRET=... node scripts/simulate.mjs <your_github_login>
-```
-
-(The login must have joined first, so it exists in `players`.)
+- `/` Room board (Convex, reactive `useQuery`), big QR to `/join`. `/global` public firehose, no sign-in.
+- `/join` GitHub sign-in (Convex Auth) → drafted into the smallest of 6 stables → `room.backfill` action scores the last 72h of `/users/{login}/events/public` (≤3 pages).
+- GitHub App webhook → `convex/http.ts` `/github/webhook` (HMAC verified) → `room.recordWebhook`.
+- All plays go through `lib/ingest.ts` `toRow()`. **Private repos keep only login, kind, points, time**; repo and summary are blanked before insert and `assertClean` refuses anything else. `dedupeKey` is a one-way hash shared by webhook and backfill (push = head sha), so nothing double-counts.
 
 ## Scoring (`lib/scoring.ts`)
 
@@ -38,20 +27,7 @@ GITHUB_WEBHOOK_SECRET=... node scripts/simulate.mjs <your_github_login>
 | Merged PR | 10 (+2 at 10★, +5 at 50★) | |
 | Release | 25 (prerelease 12) | |
 
-Only public repos count. Each webhook delivery is stored once (`dedupe_key`), so replays don't double-score.
-
-## Layout
-
-```
-app/page.tsx                    live broadcast (map, scoreboard, plays, commentary)
-app/join, app/auth/callback     GitHub sign-in → auto-draft onto the smallest team
-app/api/github/webhook          verifies signature, scores push / PR / release
-app/api/commentary              Grok play-by-play line (xAI API)
-app/api/join                    drafts the signed-in player (draft_player RPC)
-lib/scoring.ts                  all scoring rules
-supabase/schema.sql             tables, team_scores view, draft function, RLS, realtime
-scripts/simulate.mjs            send a signed fake push
-```
+Public and private repos count (private shown as "a private repo"). Each play is stored once (`dedupeKey`).
 
 ## Next up
 
