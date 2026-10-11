@@ -54,6 +54,7 @@ function record(value: unknown): Record<string, unknown> {
 function isPrivate(value: unknown, depth = 0): boolean {
   if (depth > 12) return true;
   if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some((v) => isPrivate(v, depth + 1));
   const obj = record(value);
   return obj.private === true || obj.public === false || Object.values(obj).some((v) => isPrivate(v, depth + 1));
 }
@@ -68,7 +69,7 @@ export function toPlay(input: unknown, team: number, received?: number): Play | 
   if (isPrivate(input)) return null;
   const e = record(input), actor = record(e.actor), repo = record(e.repo), p = record(e.payload);
   const id = text(e.id, 100), login = text(actor.login, 39), name = text(repo.name, 240), date = text(e.created_at, 40);
-  if (!id || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || BOT.test(login) || !name || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(name) || !date) return null;
+  if (!id || !/^[a-z\d_.:-]+$/i.test(id) || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || BOT.test(login) || !name || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(name) || !date) return null;
   const created = Date.parse(date), at = received ?? created;
   if (!Number.isFinite(created) || !Number.isFinite(at) || created < 0 || at < 0 || !Number.isInteger(team) || team < 0 || team > 5) return null;
   const base = { id, at, created, login, avatar: safeAvatar(actor.avatar_url), repo: name, team };
@@ -94,7 +95,7 @@ export function toPlay(input: unknown, team: number, received?: number): Play | 
       const r = record(p.release);
       if (p.action !== undefined && p.action !== "published") return null;
       if (r.prerelease !== undefined && typeof r.prerelease !== "boolean") return null;
-      const summary = text(r.tag_name ?? r.name ?? "release", 240);
+      const summary = text(r.tag_name ?? r.name, 240);
       return summary ? { ...base, kind: "release", points: releasePoints(r.prerelease === true), summary } : null;
     }
     case "WatchEvent": return { ...base, kind: "star", points: 0, summary: "starred" };
@@ -104,7 +105,7 @@ export function toPlay(input: unknown, team: number, received?: number): Play | 
 export function parsePlay(input: unknown): Play | null {
   const p = record(input);
   const id = text(p.id, 100), login = text(p.login, 39), repo = text(p.repo, 240), summary = text(p.summary, 320);
-  if (isPrivate(input) || !id || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || !repo || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(repo) || !summary
+  if (isPrivate(input) || !id || !/^[a-z\d_.:-]+$/i.test(id) || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || !repo || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(repo) || !summary
     || typeof p.at !== "number" || !Number.isFinite(p.at) || p.at < 0
     || typeof p.created !== "number" || !Number.isFinite(p.created) || p.created < 0
     || typeof p.team !== "number" || !Number.isInteger(p.team) || p.team < 0 || p.team > 5) return null;

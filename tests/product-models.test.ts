@@ -8,7 +8,7 @@ const now = Date.UTC(2026, 9, 11);
 const event = (id = "1") => ({ id, type: "PushEvent", actor: { login: "Alice", avatar_url: "https://evil.test/avatar" }, repo: { name: "Alice/project" }, payload: { size: 3 }, created_at: new Date(now - 36 * OBSERVED_HOUR).toISOString() });
 const play = (id = "1") => { const p = toPlay(event(id), 0, now); assert.ok(p); return p; };
 test("source rejects private markers before scoring, including nested repositories", () => {
-  for (const e of [{ ...event(), public: false }, { ...event(), repo: { name: "secret/repo", private: true } }, { ...event(), payload: { pull_request: { base: { repo: { private: true } } } } }]) assert.equal(toPlay(e, 0), null);
+  for (const e of [{ ...event(), public: false }, { ...event(), repo: { name: "secret/repo", private: true } }, { ...event(), payload: { pull_request: { base: { repo: { private: true } } } } }, { ...event(), payload: { items: [{ repo: { private: true } }] } }]) assert.equal(toPlay(e, 0), null);
 });
 test("source rejects malformed IDs, dates, identity, points and unbounded text", () => {
   for (const e of [{ ...event(), id: "" }, { ...event(), created_at: "invalid" }, { ...event(), actor: { login: "bad/name" } }, { ...event(), payload: { size: Infinity } }, { ...event(), payload: { ref: "x".repeat(300) } }]) assert.equal(toPlay(e, 0), null);
@@ -67,4 +67,24 @@ test("stars stay in the feed without zero-score ranked builders; duplicate first
   const later = { ...p, at: now + 1000 };
   assert.deepEqual(publicBoard([later, p], now + 1000), publicBoard([p, later], now + 1000));
   assert.equal(publicBoard([later, p], now + 1000).plays[0].at, now);
+});
+
+test("seven-day boundary cannot reopen an expired observed ID; response bound is separate from ledger", () => {
+  const c = new PublicCollection(); const p = { ...play(), created: now };
+  c.admit(p, now);
+  assert.equal(c.admit(p, now + CREATION_HORIZON), false);
+  assert.equal(parsePublicSample({ status: "live", plays: Array.from({ length: 601 }, (_, i) => play(String(i))), nextPollMs: 0, lastSuccessAt: now, capacityReached: false }), null);
+});
+
+test("overtake needs new credited points; first load, ties, expiry and truncation stay quiet", async () => {
+  const { publicOvertake } = await import("../lib/global-board");
+  const alice = { ...play("a"), kind: "pr_merged" as const, points: 10 };
+  const bob = { ...play("b"), login: "bob", points: 3 };
+  const bobMerge = { ...play("bm"), login: "bob", kind: "pr_merged" as const, points: 10 };
+  assert.deepEqual(publicOvertake([alice, bob], [alice, bob, bobMerge], now), { up: "bob", down: "alice" });
+  assert.equal(publicOvertake([], [alice, bob, bobMerge], now), null);
+  assert.equal(publicOvertake([alice, bob], [alice, bob, { ...bobMerge, points: 0, kind: "star" }], now), null);
+  assert.equal(publicOvertake([alice, { ...bob, points: 10, kind: "pr_merged" }], [alice, bobMerge], now), null);
+  assert.equal(publicOvertake([{ ...alice, at: now - OBSERVED_HOUR }, bob], [bob], now), null);
+  assert.equal(publicOvertake([alice, bob], [bob, bobMerge], now), null);
 });

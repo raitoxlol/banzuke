@@ -19,7 +19,7 @@ function useJoinFlow() {
   const board = useQuery(api.room.board, isAuthenticated ? {} : "skip");
   const [state, dispatch] = useReducer(reduceJoin, initialJoinState);
   const [notice, setNotice] = useState<{ epoch: number; text: string } | null>(null);
-  const currentLogin = isAuthenticated ? install?.login ?? fuel?.login ?? null : null;
+  const currentLogin = isAuthenticated && install?.login === fuel?.login ? install?.login ?? null : null;
   const current = useRef({ epoch: state.epoch, login: currentLogin, busy: false });
   if (current.current.epoch !== state.epoch || current.current.login !== currentLogin) current.current = { epoch: state.epoch, login: currentLogin, busy: false };
   const attempted = useRef(-1);
@@ -39,7 +39,11 @@ function useJoinFlow() {
     const epoch = state.epoch, target = answers ? "choice" : "join";
     current.current.busy = true;
     dispatch({ type: "start", epoch, target });
-    try { await join(answers ? { answers } : {}); dispatch({ type: "success", epoch, target }); }
+    try {
+      const result = await join(answers ? { answers } : {});
+      if (result.login.toLowerCase() === currentLogin.toLowerCase()) dispatch({ type: "success", epoch, target });
+      else dispatch({ type: "failure", epoch, target, answers, message: "Your GitHub account changed. Reload before retrying." });
+    }
     catch { dispatch({ type: "failure", epoch, target, answers, message: answers ? "Your agent choice wasn't saved. Retry to save it." : "We couldn't put you on the board. Retry joining." }); }
     finally { if (current.current.epoch === epoch && current.current.login === currentLogin) current.current.busy = false; }
   }, [join, state.epoch, state.login, isAuthenticated, currentLogin]);
@@ -74,7 +78,7 @@ function useJoinFlow() {
     if (step !== "finish" && state.progress.skipped.includes(step)) return "Skipped";
     return step === "finish" ? "Finish" : "Optional";
   };
-  return { state, dispatch, currentLogin, loading: isLoading || (isAuthenticated && (!currentLogin || state.login !== currentLogin || !state.hydrated)), joined, points, answers, activeInstall, historicalApp, connected, lastSync: connected ? fuel?.lastSyncAt : null, busy: state.attempt.kind === "pending", copy, authenticate, save, evidence, notice: notice?.epoch === state.epoch ? notice.text : null };
+  return { state, dispatch, currentLogin, loading: isLoading || state.login !== currentLogin || (isAuthenticated && (install === undefined || fuel === undefined || (currentLogin !== null && !state.hydrated))), joined, points, answers, activeInstall, historicalApp, connected, lastSync: connected ? fuel?.lastSyncAt : null, busy: state.attempt.kind === "pending", copy, authenticate, save, evidence, notice: notice?.epoch === state.epoch ? notice.text : null };
 }
 
 export default function JoinLive({ icon }: { icon: React.ReactNode }) {
@@ -127,7 +131,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
         </>}
         {step === "cliSetup" && <>
           <p>Preview your local AI usage with the CLI. The browser can't check whether you've set it up.</p><p className="product-muted">Requires Node.js, GitHub CLI, and access to the private raitoxlol/banzuke repository. Browser sign-in doesn't grant repository access.</p>
-          <pre><code>{CLI_PREVIEW}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_PREVIEW)}>Copy preview commands</button>
+          <pre><code>{CLI_PREVIEW}</code></pre><button className="secondary" onClick={() => void flow.copy(CLI_PREVIEW)}>Copy setup command</button>
           <p>The dry run shows what would be sent and sends nothing.</p><div className="step-actions"><button onClick={() => dispatch({ type: "ready" })}>I've run the preview</button><button className="text-button" onClick={skip}>Skip for now</button></div>
         </>}
         {step === "cliConnect" && <>

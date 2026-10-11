@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { toPlay } from "@/lib/firehose";
-import { PublicCollection, type SampleStatus } from "@/lib/global-board";
+import { PublicCollection, DELIVERY_LIMIT, type SampleStatus } from "@/lib/global-board";
 
 export const dynamic = "force-dynamic";
 const token = process.env.GITHUB_TOKEN;
@@ -16,7 +16,7 @@ async function poll() {
   const pages = token ? 3 : 1;
   for (let page = 1; page <= pages; page++) {
     const response = await fetch(`https://api.github.com/events?per_page=100&page=${page}`, {
-      headers: { ...headers, ...(page === 1 && state.etag ? { "If-None-Match": state.etag } : {}) }, cache: "no-store",
+      headers: { ...headers, ...(page === 1 && state.etag ? { "If-None-Match": state.etag } : {}) }, cache: "no-store", signal: AbortSignal.timeout(15_000),
     });
     const now = Date.now();
     const interval = Number(response.headers.get("x-poll-interval"));
@@ -46,6 +46,6 @@ export async function GET() {
     await state.inFlight;
   }
   const now = Date.now();
-  return NextResponse.json({ status: state.status, plays: state.collection.snapshot(now), nextPollMs: Math.max(0, state.next - now),
+  return NextResponse.json({ status: state.status, plays: state.collection.snapshot(now).slice(0, DELIVERY_LIMIT), nextPollMs: Math.max(0, state.next - now),
     lastSuccessAt: state.lastSuccessAt, capacityReached: state.collection.capacityReached }, { headers: { "Cache-Control": "no-store" } });
 }

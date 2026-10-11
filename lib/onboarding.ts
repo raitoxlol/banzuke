@@ -47,6 +47,6 @@ export function reduceJoin(state: JoinState, event: JoinEvent): JoinState {
     case "storageFailed": return { ...state, storageAvailable: false };
   }
 }
-export const CLI_PREVIEW = "gh repo clone raitoxlol/banzuke\nnode banzuke/cli/banzuke.mjs --dry-run";
+export const CLI_PREVIEW = "gh repo clone raitoxlol/banzuke && node banzuke/cli/banzuke.mjs --dry-run";
 export const CLI_CONNECT = "node banzuke/cli/banzuke.mjs --full --onboard";
 export const APP_INSTALL = "https://github.com/apps/banzukeboard/installations/new";
