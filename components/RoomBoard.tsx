@@ -1,109 +1,102 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BRAND } from "@/lib/brand";
-import { ROOM_STABLES as HEYA_STABLES, side, whyTag, type Answers } from "@/lib/quiz";
 import { rankOf } from "@/lib/board";
-import { playLabel } from "@/lib/ingest";
-import { Count } from "@/components/Ticker";
+import { deriveBroadcast, jstDeadlineForDay, PLAY_VERB, remainingSeconds, type BroadcastPlay, type RoomData } from "@/lib/room-broadcast";
+import type { Side } from "@/lib/sides";
+import { CommentaryTicker, Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
+import { TugBar } from "@/components/TugOfWar";
+import { ViewToggle } from "@/components/ViewToggle";
 
-export interface RoomData {
-  players: { login: string; avatar: string; team: number; answers?: Answers }[];
-  plays: { id: string; login: string; team: number; kind: "push" | "pr_merged" | "release"; points: number; at: number; private: boolean; repo: string; summary: string }[];
+type Clock = { nowMs: number; deadlineMs: number };
+type FeedFilter = "all" | Side;
+type Playback = { kind: "following" } | { kind: "paused"; entries: readonly BroadcastPlay[]; nowMs: number | null };
+
+const filters: readonly { value: FeedFilter; label: string }[] = [
+  { value: "all", label: "All" }, { value: "claude", label: "Claude" }, { value: "codex", label: "Codex" },
+];
+const duration = (seconds: number) => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((n) => String(n).padStart(2, "0")).join(":");
+const ago = (at: number, nowMs: number | null) => {
+  if (nowMs === null) return "--";
+  const seconds = Math.max(0, Math.floor((nowMs - at) / 1000));
+  return seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m` : `${Math.floor(seconds / 3600)}h`;
+};
+
+function PlaybackIcon({ paused }: { paused: boolean }) {
+  return <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {paused ? <path d="m5 3 7 5-7 5Z" /> : <path d="M5 3v10M11 3v10" />}
+  </svg>;
 }
-const VERB = { push: "pushed to", pr_merged: "merged in", release: "released" } as const;
-const ago = (t: number, now: number) => { const s = Math.max(0, (now - t) / 1000 | 0); return s < 60 ? `${s}s` : s < 3600 ? `${s / 60 | 0}m` : `${s / 3600 | 0}h`; };
 
 export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const model = useMemo(() => deriveBroadcast(data), [data]);
+  const [clock, setClock] = useState<Clock | null>(null);
+  const [filter, setFilter] = useState<FeedFilter>("all");
+  const [playback, setPlayback] = useState<Playback>({ kind: "following" });
+  useEffect(() => {
+    const nowMs = Date.now();
+    const deadlineMs = jstDeadlineForDay(nowMs);
+    setClock({ nowMs, deadlineMs });
+    const timer = setInterval(() => setClock({ nowMs: Date.now(), deadlineMs }), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const avatar = new Map(data.players.map((p) => [p.login, p.avatar]));
-  const by = new Map<string, { login: string; team: number; score: number; plays: number }>();
-  for (const p of data.players) by.set(p.login, { login: p.login, team: p.team, score: 0, plays: 0 });
-  for (const p of data.plays) { const b = by.get(p.login) ?? { login: p.login, team: p.team, score: 0, plays: 0 }; b.score += p.points; b.plays++; by.set(p.login, b); }
-  const builders = [...by.values()].sort((a, b) => b.score - a.score);
-  const teams = HEYA_STABLES.map((s) => ({ ...s, score: 0, builders: 0 }));
-  for (const b of builders) { teams[b.team].score += b.score; teams[b.team].builders++; }
-  teams.sort((a, b) => b.score - a.score);
-  const color = new Map(HEYA_STABLES.map((s) => [s.id, s.color]));
-  const name = new Map(HEYA_STABLES.map((s) => [s.id, s.name]));
-  const why = new Map(data.players.map((p) => [p.login, whyTag(p.answers)]));
-  const claude = data.players.filter((p) => side(p.team) === "Claude Code").length;
-  const top = teams[0]?.score || 1;
-  const hour = data.plays.filter((p) => now - p.at < 3600_000);
-  const latest = data.plays[0];
-  const line = latest
-    ? `@${latest.login} ${VERB[latest.kind]} ${latest.private ? "a private repo" : latest.repo}. +${latest.points} for ${name.get(latest.team)}. ${teams[0].name} hold the top of the banzuke.`
-    : "Scan the code. Sign in with GitHub. Your last 72 hours land on the board.";
+  const paused = playback.kind === "paused";
+  const feed = paused ? playback.entries : model.feed;
+  const feedNow = paused ? playback.nowMs : clock?.nowMs ?? null;
+  const entries = feed.filter((play) => filter === "all" || play.side === filter).slice(0, 9);
+  const topScore = model.stables[0]?.score ?? 0;
+  const countdown = clock ? remainingSeconds(clock) : null;
 
-  return (
-    <main className="g room">
-      <header className="g-head">
-        <div className="wordmark big"><span className="dot" /><span>{BRAND.name.toUpperCase()}</span>
-          <span className={`badge ${live ? "" : "warn"}`}>{live ? "LIVE" : "DEMO"}</span></div>
-        <div className="g-sub muted"><span>Grok Bot Tokyo room board</span><span className="sep" /><span>real-time via GitHub App · 72h backfill on sign-up</span></div>
-        <span />
-        <div className="num g-clock" suppressHydrationWarning>{new Date(now).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo" })} <span className="muted">JST</span></div>
-      </header>
+  return <main className="room-broadcast">
+    <header className="bzk-header">
+      <div className="bzk-brand">
+        <div className="bzk-brand-line">
+          <h1>{BRAND.name.toUpperCase()} <span className="bzk-edition">#1J</span></h1>
+          <span className={`bzk-status ${live ? "is-live" : "is-demo"}`}><i aria-hidden="true" />{live ? "LIVE" : "DEMO"}</span>
+        </div>
+        <div className="bzk-header-bottom"><span className="bzk-room-label">Tokyo room board</span><ViewToggle view="room" /></div>
+      </div>
+      <dl className="bzk-clocks">
+        <div><dt>Time in Japan</dt><dd><time>{clock ? new Date(clock.nowMs).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo" }) : "--:--:--"}</time><span>JST</span></dd></div>
+        <div><dt>To 18:00 JST</dt><dd className="bzk-countdown">{countdown === null ? "--:--:--" : duration(countdown)}</dd></div>
+      </dl>
+      <JoinQr compact />
+    </header>
 
-      <section className="counters">
-        {([
-          ["Builders in the room", data.players.length, `Claude Code ${claude} · Codex ${data.players.length - claude}`],
-          ["Plays", data.plays.length, "last 72h"],
-          ["Points", data.plays.reduce((s, p) => s + p.points, 0), "last 72h"],
-          ["Last hour", hour.length, "plays"],
-          ["Private plays", data.plays.filter((p) => p.private).length, "credit, no spoilers"],
-        ] as const).map(([k, v, s]) => <div key={k} className="counter"><dt>{k}</dt><dd><Count value={v} /></dd><small className="muted">{s}</small></div>)}
+    <TugBar s={model.sides} variant="broadcast" />
+
+    <div className="bzk-middle">
+      <section className="bzk-rankings" aria-labelledby="stable-title">
+        <div className="bzk-section-head"><h2 id="stable-title">Stable rankings <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2><span className="bzk-heading-note">Points</span></div>
+        <ol className="bzk-rank-list">
+          {model.stables.map((stable, index) => <li key={stable.id} className={`bzk-rank-row ${stable.id % 2 === 0 ? "is-claude" : "is-codex"}`} style={{ transform: `translateY(${index * 100}%)` }}>
+            <span className="bzk-rank"><b lang="ja">{rankOf(index)[0]}</b><span>{rankOf(index)[1]}</span></span>
+            <span className="bzk-stable-name"><b>{stable.name}</b><span>{stable.builders} {stable.builders === 1 ? "builder" : "builders"}<span lang="ja" aria-hidden="true">{stable.jp}</span></span></span>
+            <span className="bzk-stable-score"><Count value={stable.score} /></span>
+            <span className="bzk-rank-track" aria-hidden="true"><i style={{ width: `${topScore ? stable.score / topScore * 100 : 0}%` }} /></span>
+          </li>)}
+        </ol>
+        <div className="bzk-rank-footer"><span>{data.players.length} registered builders · Last 72 hours</span><a href="/join#scoring">How points work</a></div>
       </section>
 
-      <section className="g-grid">
-        <div className="stage room-stage">
-          <JoinQr />
-          <ul className="g-feed room-feed">
-            {data.plays.slice(0, 9).map((p) => (
-              <li key={p.id} className={`${p.kind} ${p.private ? "priv" : ""}`}>
-                <i style={{ background: color.get(p.team) }} />
-                <b>@{p.login}</b> <span className="muted">{VERB[p.kind]}</span> <span className="repo">{playLabel(p)}</span>
-                <em className="num">+{p.points}</em><time className="num muted">{ago(p.at, now)}</time>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="panel g-teams">
-          <h2><span>Stables</span><span className="jp" aria-hidden>部屋</span></h2>
-          <ol className="t-list">
-            {teams.map((t, i) => (
-              <li key={t.id} style={{ transform: `translateY(calc(${i} * var(--trow)))`, ["--team" as string]: t.color }} className={i === 0 ? "top" : ""}>
-                <span className="t-rank"><b>{rankOf(i)[0]}</b><small>{rankOf(i)[1]}</small></span>
-                <span className="t-name">{t.name}<small className="muted">{t.builders} builders · {t.jp}</small></span>
-                <span className="t-score"><Count value={t.score} /></span>
-                <span className="t-bar"><i style={{ width: `${(t.score / top) * 100}%` }} /></span>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <div className="panel g-builders">
-          <h2><span>Top builders</span><span className="jp" aria-hidden>番付</span></h2>
-          <ol className="b-list">
-            {builders.slice(0, 9).map((b, i) => (
-              <li key={b.login} style={{ transform: `translateY(calc(${i} * var(--brow)))`, ["--team" as string]: color.get(b.team) }}>
-                <span className="b-rank num">{i + 1}</span>
-                {avatar.get(b.login) ? <img src={avatar.get(b.login)} alt="" /> : <span className="b-av" />}
-                <span className="b-name">@{b.login}<small className="muted">{rankOf(i)[1]} · {name.get(b.team)}{why.get(b.login) ? ` · ${why.get(b.login)}` : ""}</small></span>
-                <span className="b-score"><Count value={b.score} /></span>
-              </li>
-            ))}
-          </ol>
-        </div>
+      <section className="bzk-plays" aria-labelledby="plays-title">
+        <div className="bzk-section-head"><h2 id="plays-title">Latest plays</h2><button className="bzk-pause" type="button" aria-pressed={paused} onClick={() => setPlayback(paused ? { kind: "following" } : { kind: "paused", entries: model.feed, nowMs: clock?.nowMs ?? null })}><PlaybackIcon paused={paused} />{paused ? "Resume feed" : "Pause feed"}</button></div>
+        <div className="bzk-feed-tools"><div className="bzk-filters" role="group" aria-label="Filter plays by side">{filters.map(({ value, label }) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="bzk-feed-status">{paused ? "Feed paused" : live ? "Following live" : "Demo plays"}</span></div>
+        <ul className="bzk-play-list" aria-label={paused ? "Paused plays" : "Recent plays"}>
+          {entries.map((play) => <li key={play.id} className={play.side === "claude" ? "is-claude" : "is-codex"}>
+            <span className="bzk-play-side"><i aria-hidden="true" /><span className="bzk-sr-only">{play.side === "claude" ? "Claude Code" : "Codex"}</span></span>
+            <div className="bzk-play-copy"><div><b>@{play.login}</b><span className="bzk-play-kind">{play.kind === "push" ? "Push" : play.kind === "pr_merged" ? "Merged PR" : "Release"}</span></div><span className="bzk-play-label">{PLAY_VERB[play.kind]} {play.label}</span></div>
+            <a className="bzk-play-points" href="/join#scoring" aria-label={`How ${play.points} points were scored`}>+{play.points}</a>
+            <time className="bzk-play-age" dateTime={new Date(play.at).toISOString()}>{ago(play.at, feedNow)}</time>
+          </li>)}
+          {entries.length === 0 && <li className="bzk-empty">{feed.length ? "No plays for this side yet." : "No plays yet. Join the match to get on the board."}</li>}
+        </ul>
+        <p className="bzk-feed-note">Private work scores as <span>a private repo</span>.</p>
       </section>
+    </div>
 
-      <section className="ticker g-ticker" aria-live="polite">
-        <span className="ticker-tag">GROK</span><p key={line}>{line}</p>
-        <span className="muted small src">{live ? "Convex · real-time" : "demo data"}</span>
-      </section>
-    </main>
-  );
+    <CommentaryTicker text={model.commentary} />
+  </main>;
 }

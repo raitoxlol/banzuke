@@ -1,4 +1,4 @@
-import type { RoomData } from "@/components/RoomBoard";
+import type { RoomData } from "./room-broadcast";
 
 // Demo mode: a room of fake signed-up builders, including private-repo plays, so the board works with no keys.
 const PEOPLE = ["raitoxlol", "sakura-dev", "kenji", "mika", "yuki", "arjun", "lena", "noah", "chloe", "tomo", "hana", "ren", "aoi", "sora", "daichi", "mei"];

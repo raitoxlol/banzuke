@@ -2,57 +2,57 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Count, useReducedMotion } from "@/components/Ticker";
 import type { Side, Sides } from "@/lib/sides";
 
-const C = { claude: "var(--team-peach)", codex: "var(--team-blue)" } as const;
-const mono = { fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" as const };
-
-export function TugBar({ s }: { s: Sides }) {
+export function TugBar({ s, variant = "standalone" }: { s: Sides; variant?: "standalone" | "broadcast" }) {
   const total = s.claude + s.codex;
-  const pct = total ? (s.claude / total) * 100 : 50; // marker position from left; Claude pulls right
+  const marker = total ? s.codex / total * 100 : 50;
   const leader: Side | null = s.claude === s.codex ? null : s.claude > s.codex ? "claude" : "codex";
+  const difference = Math.abs(s.claude - s.codex);
+  const reduced = useReducedMotion();
   const [flash, setFlash] = useState<Side | null>(null);
   const [flip, setFlip] = useState(false);
-  const lastId = useRef(s.last?.id), lastLeader = useRef(leader);
+  const lastId = useRef(s.last?.id);
+  const lastLeader = useRef(leader);
+
   useEffect(() => {
-    if (s.last && s.last.id !== lastId.current) { lastId.current = s.last.id; setFlash(s.last.side); const t = setTimeout(() => setFlash(null), 1200); return () => clearTimeout(t); }
-  }, [s.last]);
+    const changed = s.last && s.last.id !== lastId.current;
+    lastId.current = s.last?.id;
+    if (reduced || !changed) { setFlash(null); return; }
+    setFlash(s.last?.side ?? null);
+    const timer = setTimeout(() => setFlash(null), 1200);
+    return () => clearTimeout(timer);
+  }, [s.last, reduced]);
+
   useEffect(() => {
-    if (leader && lastLeader.current && leader !== lastLeader.current) { setFlip(true); setTimeout(() => setFlip(false), 2500); }
+    const changed = leader && lastLeader.current && leader !== lastLeader.current;
     if (leader) lastLeader.current = leader;
-  }, [leader]);
+    if (reduced || !changed) { setFlip(false); return; }
+    setFlip(true);
+    const timer = setTimeout(() => setFlip(false), 2500);
+    return () => clearTimeout(timer);
+  }, [leader, reduced]);
 
-  const side = (k: Side, name: string, n: number, pl: number, align: "left" | "right") => (
-    <div style={{ textAlign: align, transition: "transform .3s", transform: flash === k ? "scale(1.08)" : "none", textShadow: flash === k ? `0 0 24px ${C[k]}` : "none" }}>
-      <div style={{ fontSize: 28, fontWeight: 700, color: C[k], letterSpacing: 1 }}>{name}{leader === k ? " 👑" : ""}</div>
-      <div style={{ ...mono, fontSize: 88, fontWeight: 700, lineHeight: 1, color: "var(--fg)" }}>{n.toLocaleString()}</div>
-      <div style={{ ...mono, fontSize: 20, color: "var(--muted)" }}>{pl} {pl === 1 ? "player" : "players"}</div>
+  const leadText = leader ? `${leader === "claude" ? "Claude Code" : "Codex"} leads by ${difference.toLocaleString()} ${difference === 1 ? "point" : "points"}` : total ? "An even match" : "The match starts with you";
+  const renderSide = (side: Side, name: string, points: number, players: number) => <div className={`tug-side is-${side} ${!reduced && flash === side ? "is-scoring" : ""}`}>
+    <h2>{name}</h2><div className="tug-score"><Count value={points} /><span>pts</span></div>
+    <p>{players} {players === 1 ? "builder" : "builders"}</p>
+  </div>;
+
+  return <section className={`tug-board ${variant === "broadcast" ? "bzk-tug" : "tug-standalone"}`} aria-label="Claude Code versus Codex">
+    <div className="tug-scores">
+      {renderSide("claude", "Claude Code", s.claude, s.claudePlayers)}
+      <div className="tug-match"><span className="tug-vs">VS</span><p className={leader ? `is-${leader}` : ""}>{leadText}</p>{flip && !reduced && <span className="tug-lead-change">Lead changes</span>}</div>
+      {renderSide("codex", "Codex", s.codex, s.codexPlayers)}
     </div>
-  );
-
-  return (
-    <section style={{ position: "relative", width: "100%", padding: "24px 32px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 16, boxSizing: "border-box" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "end", gap: 24, marginBottom: 20 }}>
-        {side("claude", "Claude Code", s.claude, s.claudePlayers, "left")}
-        <div style={{ fontFamily: "var(--font-jp)", fontSize: 44, color: "var(--muted)", paddingBottom: 12 }}>綱引き</div>
-        {side("codex", "Codex", s.codex, s.codexPlayers, "right")}
-      </div>
-      <div style={{ position: "relative", height: 56, borderRadius: 28, overflow: "hidden", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
-        <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: C.claude, opacity: flash === "claude" ? 1 : 0.75, transition: "width 1.2s cubic-bezier(.2,.8,.2,1), opacity .3s" }} />
-        <div style={{ position: "absolute", top: 0, bottom: 0, left: `${pct}%`, right: 0, background: C.codex, opacity: flash === "codex" ? 1 : 0.75, transition: "left 1.2s cubic-bezier(.2,.8,.2,1), opacity .3s" }} />
-        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "var(--fg)", opacity: 0.35 }} />
-        <div style={{ position: "absolute", top: "50%", left: `${pct}%`, width: 40, height: 40, marginLeft: -20, marginTop: -20, borderRadius: "50%", background: "var(--fg)", border: "4px solid var(--bg)", boxShadow: "0 0 18px rgba(0,0,0,.6)", transition: "left 1.2s cubic-bezier(.2,.8,.2,1)" }} />
-      </div>
-      {flip && leader && (
-        <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(11,13,18,.7)", borderRadius: 16, pointerEvents: "none" }}>
-          <div style={{ textAlign: "center", color: C[leader] }}>
-            <div style={{ fontFamily: "var(--font-jp)", fontSize: 120, fontWeight: 700, lineHeight: 1 }}>逆転</div>
-            <div style={{ fontSize: 32, fontWeight: 700 }}>{leader === "claude" ? "Claude Code" : "Codex"} takes the lead</div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
+    <div className="tug-rope" role="img" aria-label={leadText} data-marker={marker}>
+      <div className="tug-half is-claude" /><div className="tug-half is-codex" />
+      <span className="tug-midline" />
+      <span className="tug-marker" style={{ left: `${marker}%` }}><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 4 10 10-10 10L4 14Z" /><path d="M14 9v10M9 14h10" /></svg></span>
+    </div>
+    <div className="tug-axis" aria-hidden="true"><span>Claude Code</span><span>Pull toward the lead</span><span>Codex</span></div>
+  </section>;
 }
 
 export function TugLive() {
@@ -60,16 +60,15 @@ export function TugLive() {
   return <TugBar s={s ?? { claude: 0, codex: 0, claudePlayers: 0, codexPlayers: 0, last: null }} />;
 }
 
-/** No Convex: fake numbers that tick, so it still demos. */
 export function TugDemo() {
   const [s, set] = useState<Sides>({ claude: 142, codex: 131, claudePlayers: 38, codexPlayers: 41, last: null });
   useEffect(() => {
     let n = 0;
-    const t = setInterval(() => set((o) => {
-      const side: Side = Math.random() < 0.5 ? "claude" : "codex", pts = 1 + Math.floor(Math.random() * 6);
-      return { ...o, [side]: o[side] + pts, last: { side, at: Date.now(), id: String(++n) } };
+    const timer = setInterval(() => set((previous) => {
+      const side: Side = Math.random() < 0.5 ? "claude" : "codex", points = 1 + Math.floor(Math.random() * 6);
+      return { ...previous, [side]: previous[side] + points, last: { side, at: Date.now(), id: String(++n) } };
     }), 2500);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, []);
   return <TugBar s={s} />;
 }

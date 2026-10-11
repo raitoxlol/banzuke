@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { hasConvex } from "@/lib/convex";
 import { demoPlay, demoRoom } from "@/lib/demo";
-import { RoomBoard, RoomData } from "@/components/RoomBoard";
-import { ViewToggle } from "@/components/ViewToggle";
+import { RoomBoard } from "@/components/RoomBoard";
+import type { RoomData } from "@/lib/room-broadcast";
 
 const RoomLive = dynamic(() => import("@/components/RoomLive"), { ssr: false });
 
@@ -19,5 +19,5 @@ function RoomDemo() {
 }
 
 export default function Room() {
-  return <>{hasConvex() ? <RoomLive /> : <RoomDemo />}<ViewToggle view="room" /></>;
+  return hasConvex() ? <RoomLive /> : <RoomDemo />;
 }
