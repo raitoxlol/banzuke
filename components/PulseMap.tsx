@@ -5,7 +5,7 @@ import { feature } from "topojson-client";
 import type { PulseEvent, Team } from "@/lib/supabase";
 
 const W = 960, H = 500;
-const WORLD = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const WORLD = "/countries-110m.json";
 
 export function PulseMap({ events, teams }: { events: PulseEvent[]; teams: Team[] }) {
   const [land, setLand] = useState<string | null>(null);

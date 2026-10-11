@@ -48,7 +48,7 @@ Dark first. One accent. Team colors are muted so the map reads as data, not deco
 | team-gold | #D4B05C | 9.41 | 8.07 |
 | team-green | #6FBF8E | 8.81 | 7.56 |
 | team-violet | #A68CD9 | 6.82 | 5.86 |
-| team-teal | #5BBDBA | 8.73 | 7.49 |
+| team-peach | #E39A6B | 8.42 | 7.23 |
 
 All text and accent colors pass WCAG AA (4.5:1) on bg and surface-2. Text on a pulse fill uses bg color (6.27:1). White on pulse fails (2.58:1). Do not use it. Border is decorative and not meant to pass.
 
