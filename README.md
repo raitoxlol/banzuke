@@ -31,7 +31,7 @@ Built at the Grok Bot Tokyo Hackathon (Oct 11, 2026).
 
 ## Use with your Grok Bot
 ```
-Read https://raw.githubusercontent.com/raitoxlol/banzuke/main/grokbot/SKILL.md and save it as a skill, then tell me how I'm doing on Banzuke (my GitHub is <login>).
+Read https://banzuke.raitox.tech/skill.md and save it as a skill, then tell me how I'm doing on Banzuke (my GitHub is <login>).
 ```
 Public read-only API: `GET /api/status?login=<github>` and `GET /api/board`.
 
