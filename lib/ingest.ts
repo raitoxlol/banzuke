@@ -3,16 +3,17 @@
 // Private repos: ONLY login, kind, points, time survive. repo/summary are blanked here, and
 // convex/room.ts re-asserts it before every insert. dedupeKey is a one-way hash so it leaks nothing.
 // Pure TS with no Node APIs so it runs in Convex's default runtime and in tests.
+import { detectAgent, commitText, type Agent } from "./agents";
 import { MAX_COMMITS_PER_PUSH, POINTS, prPoints, pushPoints, releasePoints, countableCommits, Commit } from "./scoring";
 
 export type Kind = "push" | "pr_merged" | "release";
 export interface Play {
   login: string; kind: Kind; points: number; at: string; private: boolean;
-  repo: string; summary: string; key: string; source: "webhook" | "backfill";
+  repo: string; summary: string; key: string; source: "webhook" | "backfill"; agent?: Agent;
 }
 export interface Row {
   login: string; team: number; kind: Kind; points: number; at: number;
-  private: boolean; source: "webhook" | "backfill"; repo: string; summary: string; dedupeKey: string;
+  private: boolean; source: "webhook" | "backfill"; repo: string; summary: string; dedupeKey: string; agent?: Agent;
 }
 
 /** Two independent FNV-1a 32-bit passes = 64-bit one-way key. Plenty for dedupe, reveals nothing. */
@@ -34,6 +35,7 @@ export function toRow(p: Play, team: number): Row {
     repo: p.private ? "" : p.repo.slice(0, 140),
     summary: p.private ? "" : p.summary.slice(0, 140),
     dedupeKey: hashKey(p.key),
+    ...(p.agent ? { agent: p.agent } : {}),
   };
 }
 /** Last line of defence, run inside the insert mutation. */
@@ -42,6 +44,9 @@ export function assertClean(r: Row) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/** PR agent: branch prefix (codex/, cursor/, claude/, devin/...), title, body, or the opening account. */
+const prAgent = (pr: any): Agent | undefined => detectAgent(pr?.head?.ref, pr?.title, pr?.body, pr?.user?.login) ?? undefined;
+
 /** Score a GitHub App webhook delivery. Keys match backfill keys so a push is never counted twice. */
 export function fromWebhook(event: string | null, payload: any, pushPointsThisHour: number, now = new Date()): Play | null {
   const login: string | undefined = payload.sender?.login;
@@ -53,11 +58,12 @@ export function fromWebhook(event: string | null, payload: any, pushPointsThisHo
     const commits: Commit[] = payload.commits ?? [];
     const points = pushPoints(commits, pushPointsThisHour);
     if (!points) return null;
-    return { ...base, kind: "push", points, summary: countableCommits(commits)[0]?.message.split("\n")[0] ?? "", key: `push:${payload.after}` };
+    const agent = detectAgent(payload.ref, ...countableCommits(commits).map(commitText)) ?? undefined;
+    return { ...base, kind: "push", points, summary: countableCommits(commits)[0]?.message.split("\n")[0] ?? "", key: `push:${payload.after}`, agent };
   }
   if (event === "pull_request" && payload.action === "closed" && payload.pull_request?.merged) {
     return { ...base, kind: "pr_merged", points: prPoints(payload.repository?.stargazers_count ?? 0),
-      summary: `merged #${payload.pull_request.number}: ${payload.pull_request.title}`, key: `pr:${payload.repository?.id}#${payload.pull_request.number}` };
+      summary: `merged #${payload.pull_request.number}: ${payload.pull_request.title}`, key: `pr:${payload.repository?.id}#${payload.pull_request.number}`, agent: prAgent(payload.pull_request) };
   }
   if (event === "release" && payload.action === "published") {
     return { ...base, kind: "release", points: releasePoints(Boolean(payload.release?.prerelease)),
@@ -87,10 +93,11 @@ export function fromPublicEvents(login: string, events: any[], now = Date.now())
       const points = Math.min(n * POINTS.push, Math.max(0, 12 - used));
       if (!points) continue;
       hour.set(h, used + points);
-      out.push({ ...base, kind: "push", points, summary: `${n} commit${n > 1 ? "s" : ""}`, key: `push:${p.head ?? e.id}` });
+      out.push({ ...base, kind: "push", points, summary: `${n} commit${n > 1 ? "s" : ""}`, key: `push:${p.head ?? e.id}`,
+        agent: detectAgent(p.ref, ...(Array.isArray(p.commits) ? p.commits.map(commitText) : [])) ?? undefined });
     } else if (e.type === "PullRequestEvent" && p.action === "closed" && p.pull_request?.merged) {
       out.push({ ...base, kind: "pr_merged", points: prPoints(p.pull_request?.base?.repo?.stargazers_count ?? 0),
-        summary: `merged #${p.pull_request.number}: ${p.pull_request.title ?? ""}`, key: `pr:${e.repo?.id}#${p.pull_request.number}` });
+        summary: `merged #${p.pull_request.number}: ${p.pull_request.title ?? ""}`, key: `pr:${e.repo?.id}#${p.pull_request.number}`, agent: prAgent(p.pull_request) });
     } else if (e.type === "ReleaseEvent" && (!p.action || p.action === "published")) {
       out.push({ ...base, kind: "release", points: releasePoints(Boolean(p.release?.prerelease)),
         summary: `released ${p.release?.tag_name ?? ""}`, key: `rel:${p.release?.id ?? e.id}` });
