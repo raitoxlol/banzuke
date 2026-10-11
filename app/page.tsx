@@ -2,22 +2,15 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { hasConvex } from "@/lib/convex";
-import { demoPlay, demoRoom } from "@/lib/demo";
-import { RoomBoard } from "@/components/RoomBoard";
-import type { RoomData } from "@/lib/room-broadcast";
 
 const RoomLive = dynamic(() => import("@/components/RoomLive"), { ssr: false });
+const RoomDemo = dynamic(() => import("@/components/RoomDemo"), { ssr: false });
 
-function RoomDemo() {
-  const [data, setData] = useState<RoomData>({ players: [], plays: [] });
-  useEffect(() => {
-    setData(demoRoom());
-    const t = setInterval(() => setData((d) => ({ ...d, plays: [demoPlay(), ...d.plays].slice(0, 400) })), 1800);
-    return () => clearInterval(t);
-  }, []);
-  return <RoomBoard data={data} live={false} />;
-}
-
+/** Live Convex data only. Mock data appears solely with ?demo=1 (or with no Convex configured). */
 export default function Room() {
-  return hasConvex() ? <RoomLive /> : <RoomDemo />;
+  const [demo, setDemo] = useState<boolean | null>(null);
+  useEffect(() => setDemo(new URLSearchParams(location.search).get("demo") === "1"), []);
+  if (demo === null) return null;
+  if (demo || !hasConvex()) return <RoomDemo />;
+  return <RoomLive />;
 }

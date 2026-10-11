@@ -1,34 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { deriveBroadcast, jstDeadlineForDay, remainingSeconds, type RoomData } from "../lib/room-broadcast";
-import { tallySides } from "../lib/sides";
+import { tallyRace } from "../lib/agents";
 
 const play = (overrides: Partial<RoomData["plays"][number]> = {}): RoomData["plays"][number] => ({
   id: "play", login: "builder", team: 0, kind: "push", points: 5, at: 1,
   private: false, repo: "builder/project", summary: "ship a feature", ...overrides,
 });
 
-test("broadcast preserves stored push scores, zero-score members, current membership, and orphan plays", () => {
+test("broadcast ranks real builders, tags agents (detected > pick > human), keeps zero-score members and orphans", () => {
   const data: RoomData = {
     players: [
       { login: "builder", avatar: "", team: 2, answers: { tool: "codex", hour: "3am", indent: "tabs", friday: "yes" } },
       { login: "waiting", avatar: "", team: 5 },
     ],
-    plays: [play({ id: "old", points: 12, at: 1 }), play({ id: "new", points: 12, at: 2 }), play({ id: "orphan", login: "missing", team: 1, points: 10, at: 3 })],
+    plays: [play({ id: "old", points: 12, at: 1 }), play({ id: "new", points: 12, at: 2, agent: "cursor" }), play({ id: "orphan", login: "missing", team: 1, points: 10, at: 3 })],
   };
   const model = deriveBroadcast(data);
-  assert.equal(model.stables.length, 6);
-  assert.deepEqual(model.stables.map(({ id, score, builders }) => ({ id, score, builders })), [
-    { id: 2, score: 24, builders: 1 }, { id: 1, score: 10, builders: 1 },
-    { id: 0, score: 0, builders: 0 }, { id: 3, score: 0, builders: 0 },
-    { id: 4, score: 0, builders: 0 }, { id: 5, score: 0, builders: 1 },
-  ]);
-  assert.deepEqual(model.sides, tallySides(data.players, data.plays));
-  assert.equal(model.feed.find((entry) => entry.id === "new")?.side, "codex");
-  assert.equal(model.feed.find((entry) => entry.id === "new")?.team, 2);
+  assert.deepEqual(model.builders.map(({ login, score }) => [login, score]), [["builder", 24], ["missing", 10], ["waiting", 0]]);
+  assert.deepEqual(model.race, tallyRace(data.players, data.plays));
+  assert.equal(model.feed.find((e) => e.id === "old")?.agent, "codex");
+  assert.equal(model.feed.find((e) => e.id === "new")?.agent, "cursor");
   assert.equal(model.feed[0].id, "orphan");
-  assert.equal(model.feed[0].side, "codex");
-  assert.ok(model.commentary.includes("+10 for Codex Yoake"));
+  assert.equal(model.feed[0].agent, "human");
+  assert.ok(model.commentary.includes("+10 for Human / other"));
   assert.deepEqual(data.plays.map((entry) => entry.id), ["old", "new", "orphan"]);
 });
 
@@ -46,18 +41,16 @@ test("broadcast masks tampered private repo and summary before safe entries and 
   }
 });
 
-test("broadcast deterministically orders tied stable scores and same-time plays", () => {
-  const a = play({ id: "a", login: "left", team: 0, at: 10 });
-  const b = play({ id: "b", login: "right", team: 1, at: 10 });
-  const first = deriveBroadcast({ players: [], plays: [b, a] });
-  const second = deriveBroadcast({ players: [], plays: [a, b] });
-  assert.deepEqual(first, second);
-  assert.deepEqual(first.stables.map((stable) => stable.id), [0, 1, 2, 3, 4, 5]);
-  assert.deepEqual(first.feed.map((entry) => entry.id), ["a", "b"]);
+test("broadcast is deterministic and empty means empty (no mock data)", () => {
+  const a = play({ id: "a", login: "left", at: 10 });
+  const b = play({ id: "b", login: "right", at: 10 });
+  assert.deepEqual(deriveBroadcast({ players: [], plays: [b, a] }), deriveBroadcast({ players: [], plays: [a, b] }));
+  assert.deepEqual(deriveBroadcast({ players: [], plays: [a] }).feed.map((e) => e.id), ["a"]);
   const empty = deriveBroadcast({ players: [], plays: [] });
-  assert.equal(empty.sides.claude + empty.sides.codex, 0);
+  assert.equal(empty.race.total, 0);
   assert.equal(empty.feed.length, 0);
-  assert.ok(empty.commentary.includes("Join the match"));
+  assert.equal(empty.builders.length, 0);
+  assert.ok(empty.commentary.includes("Waiting for the first push"));
 });
 
 test("JST deadline uses the Japanese calendar day across UTC and JST midnight boundaries", () => {

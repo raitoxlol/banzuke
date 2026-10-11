@@ -26,23 +26,20 @@ export const burn = (r: { input: number; output: number; cache: number }) => r.i
 
 export interface FuelRow extends FuelWindow { login: string; team: number }
 const zero = () => Object.fromEntries(TOOLS.map((t) => [t.id, 0])) as Record<Tool, number>;
-const sideOf = new Map(TOOLS.map((t) => [t.id, t.side]));
-/** Per tool, Claude-vs-Codex headline (by model family, see lib/tools.mjs side), per player, per stable. Tokens = input + output + cache. */
+/** Per tool, per player, per group. Tokens = input + output + cache. */
 export function summarize(rows: FuelRow[]) {
   const tools = zero();
-  const sides = { claude: 0, codex: 0 };
   const players = new Map<string, { login: string; team: number; tools: Record<Tool, number>; top: Tool; total: number }>();
   const stables = new Map<number, number>();
   for (const r of rows) {
     const t = burn(r);
     tools[r.tool] += t;
-    const side = sideOf.get(r.tool); if (side) sides[side] += t;
     const p = players.get(r.login) ?? { login: r.login, team: r.team, tools: zero(), top: r.tool, total: 0 };
     p.tools[r.tool] += t; p.total += t; if (p.tools[r.tool] > p.tools[p.top]) p.top = r.tool; players.set(r.login, p);
     stables.set(r.team, (stables.get(r.team) ?? 0) + t);
   }
   return {
-    tools, sides,
+    tools,
     players: [...players.values()].sort((a, b) => b.total - a.total),
     stables: [...stables].map(([team, total]) => ({ team, total })).sort((a, b) => b.total - a.total),
   };

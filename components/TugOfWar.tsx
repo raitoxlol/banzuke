@@ -1,73 +1,76 @@
 "use client";
+// The agent race: one lane per coding agent, bars scaled to the leader. 逆転 flashes when the lead changes.
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Count, useReducedMotion } from "@/components/Ticker";
-import type { Side, Sides } from "@/lib/sides";
+import { agentLabel, tallyRace, type Agent, type Race } from "@/lib/agents";
 
-export function TugBar({ s, variant = "standalone" }: { s: Sides; variant?: "standalone" | "broadcast" }) {
-  const total = s.claude + s.codex;
-  const marker = total ? s.codex / total * 100 : 50;
-  const leader: Side | null = s.claude === s.codex ? null : s.claude > s.codex ? "claude" : "codex";
-  const difference = Math.abs(s.claude - s.codex);
+export function TugBar({ s, variant = "standalone" }: { s: Race; variant?: "standalone" | "broadcast" }) {
   const reduced = useReducedMotion();
-  const [flash, setFlash] = useState<Side | null>(null);
+  const [flash, setFlash] = useState<Agent | null>(null);
   const [flip, setFlip] = useState(false);
   const lastId = useRef(s.last?.id);
-  const lastLeader = useRef(leader);
+  const lastLeader = useRef(s.leader);
 
   useEffect(() => {
     const changed = s.last && s.last.id !== lastId.current;
     lastId.current = s.last?.id;
     if (reduced || !changed) { setFlash(null); return; }
-    setFlash(s.last?.side ?? null);
+    setFlash(s.last?.agent ?? null);
     const timer = setTimeout(() => setFlash(null), 1200);
     return () => clearTimeout(timer);
   }, [s.last, reduced]);
 
   useEffect(() => {
-    const changed = leader && lastLeader.current && leader !== lastLeader.current;
-    if (leader) lastLeader.current = leader;
+    const changed = s.leader && lastLeader.current && s.leader !== lastLeader.current;
+    if (s.leader) lastLeader.current = s.leader;
     if (reduced || !changed) { setFlip(false); return; }
     setFlip(true);
     const timer = setTimeout(() => setFlip(false), 2500);
     return () => clearTimeout(timer);
-  }, [leader, reduced]);
+  }, [s.leader, reduced]);
 
-  const leadText = leader ? `${leader === "claude" ? "Claude Code" : "Codex"} leads by ${difference.toLocaleString()} ${difference === 1 ? "point" : "points"}` : total ? "An even match" : "The match starts with you";
-  const renderSide = (side: Side, name: string, points: number, players: number) => <div className={`tug-side is-${side} ${!reduced && flash === side ? "is-scoring" : ""}`}>
-    <h2>{name}</h2><div className="tug-score"><Count value={points} /><span>pts</span></div>
-    <p>{players} {players === 1 ? "builder" : "builders"}</p>
-  </div>;
+  const top = s.lanes[0]?.points || 1;
+  // Broadcast shows lanes that have anyone in them; standalone /tug shows the whole field.
+  const lanes = variant === "broadcast" ? s.lanes.filter((l) => l.points || l.builders) : s.lanes;
+  const gap = s.leader ? s.lanes[0].points - s.lanes[1].points : 0;
+  const leadText = s.leader ? `${agentLabel(s.leader)} leads by ${gap.toLocaleString()} ${gap === 1 ? "point" : "points"}` : s.total ? "Dead heat at the top" : "Waiting for the first push — scan to join";
 
-  return <section className={`tug-board ${variant === "broadcast" ? "bzk-tug" : "tug-standalone"}`} aria-label="Claude Code versus Codex">
-    <div className="tug-scores">
-      {renderSide("claude", "Claude Code", s.claude, s.claudePlayers)}
-      <div className="tug-match"><span className="tug-vs">VS</span><p className={leader ? `is-${leader}` : ""}>{leadText}</p>{flip && !reduced && <span className="tug-lead-change">Lead changes</span>}</div>
-      {renderSide("codex", "Codex", s.codex, s.codexPlayers)}
+  return <section className={`race ${variant === "broadcast" ? "bzk-tug race-broadcast" : "race-standalone"}`} aria-label="Agent race">
+    <div className="race-head">
+      <h2>Agent race <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2>
+      <p className={s.leader ? "is-leading" : ""} style={s.leader ? { color: s.lanes[0].color } : undefined}>{leadText}</p>
+      {flip && !reduced && <span className="race-flip" lang="ja">逆転</span>}
     </div>
-    <div className="tug-rope" role="img" aria-label={leadText} data-marker={marker}>
-      <div className="tug-half is-claude" /><div className="tug-half is-codex" />
-      <span className="tug-midline" />
-      <span className="tug-marker" style={{ left: `${marker}%` }}><svg viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 4 10 10-10 10L4 14Z" /><path d="M14 9v10M9 14h10" /></svg></span>
-    </div>
-    <div className="tug-axis" aria-hidden="true"><span>Claude Code</span><span>Pull toward the lead</span><span>Codex</span></div>
+    {lanes.length ? <ol className="race-lanes">
+      {lanes.map((l, i) => <li key={l.id} className={`race-lane ${!reduced && flash === l.id ? "is-scoring" : ""}`} style={{ ["--lane" as string]: l.color }}>
+        <span className="race-pos num">#{i + 1}</span>
+        <span className="race-name">{l.label}<small>{l.builders} {l.builders === 1 ? "builder" : "builders"}</small></span>
+        <span className="race-track" aria-hidden="true"><i style={{ width: `${l.points / top * 100}%` }} /></span>
+        <span className="race-pts"><Count value={l.points} /></span>
+      </li>)}
+    </ol> : <p className="race-empty">Waiting for the first push — scan to join.</p>}
   </section>;
 }
 
+const EMPTY = tallyRace([], []);
 export function TugLive() {
-  const s = useQuery(api.room.sides);
-  return <TugBar s={s ?? { claude: 0, codex: 0, claudePlayers: 0, codexPlayers: 0, last: null }} />;
+  const s = useQuery(api.room.race);
+  return <TugBar s={s ?? EMPTY} />;
 }
 
+/** Only behind ?demo=1. */
 export function TugDemo() {
-  const [s, set] = useState<Sides>({ claude: 142, codex: 131, claudePlayers: 38, codexPlayers: 41, last: null });
+  const [s, set] = useState<Race>(EMPTY);
   useEffect(() => {
+    const ids: Agent[] = ["claude", "codex", "cursor", "devin", "opencode", "grok", "copilot", "human"];
+    const players = ids.flatMap((id, i) => Array.from({ length: 2 + (i % 3) }, (_, k) => ({ login: `${id}${k}`, answers: { tool: id } })));
+    const plays: { id: string; login: string; points: number; at: number }[] = [];
     let n = 0;
-    const timer = setInterval(() => set((previous) => {
-      const side: Side = Math.random() < 0.5 ? "claude" : "codex", points = 1 + Math.floor(Math.random() * 6);
-      return { ...previous, [side]: previous[side] + points, last: { side, at: Date.now(), id: String(++n) } };
-    }), 2500);
+    const tick = () => { const p = players[Math.floor(Math.random() * players.length)]; plays.push({ id: String(++n), login: p.login, points: 1 + Math.floor(Math.random() * 6), at: Date.now() }); set(tallyRace(players, plays)); };
+    for (let i = 0; i < 40; i++) tick();
+    const timer = setInterval(tick, 2000);
     return () => clearInterval(timer);
   }, []);
   return <TugBar s={s} />;

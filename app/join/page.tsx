@@ -1,7 +1,7 @@
 "use client";
 import { BRAND } from "@/lib/brand";
 import dynamic from "next/dynamic";
-import { ROOM_STABLES as HEYA_STABLES } from "@/lib/quiz";
+import { AGENTS } from "@/lib/agents";
 import { POINTS } from "@/lib/scoring";
 import { hasConvex } from "@/lib/convex";
 
@@ -23,7 +23,7 @@ export default function Join() {
       <section className="join-card">
         <span className="jp-mark" aria-hidden>番付</span>
         <h1>Get on the board.</h1>
-        <p className="lede">Sign in with GitHub. Answer four quick questions and they sort you into a stable: Team Claude Code or Team Codex (skip and you go to the smallest). Your public plays from the last 72 hours count right away, and repos with the GitHub App score live, private ones included, without showing their names.</p>
+        <p className="lede">Sign in with GitHub. Pick your main coding agent (Claude Code, Codex, Cursor, Devin, OpenCode, Grok, Copilot, or just you) plus three fun questions. Commits that name their agent score for that agent; the rest score for your pick. Your public plays from the last 72 hours count right away, and repos with the GitHub App score live, private ones included, without showing their names.</p>
 
         {live ? <JoinLive icon={ICON} /> : <button disabled>{ICON}Sign in with GitHub</button>}
         {!live && <p className="muted small">Demo mode. Sign-in turns on once Convex is configured (see GO-LIVE.md).</p>}
@@ -35,9 +35,9 @@ export default function Join() {
           ))}
         </ul>
 
-        <h2>Stables</h2>
+        <h2>The agent race</h2>
         <ul className="teams">
-          {HEYA_STABLES.map((t) => <li key={t.id} style={{ ["--team" as string]: t.color }}>{t.name}</li>)}
+          {AGENTS.map((t) => <li key={t.id} style={{ ["--team" as string]: t.color }}>{t.label}</li>)}
         </ul>
 
         <p className="muted small">Then install the {BRAND.name} GitHub App on the repos you want to score in real time. Bots, merge commits and empty pushes don&apos;t score.</p>

@@ -92,7 +92,7 @@ test("registry: one list drives the gate, summarize and the TS type", () => {
   assert.deepEqual([...dts.match(/type ToolId = ([^;]+);/)![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]), [...TOOL_IDS]);
   assert.equal(new Set(TOOLS.map((t) => t.color)).size, TOOLS.length);
   const s = summarize([{ ...win("opencode", 5, 0, 0, H3), login: "a", team: 0 }, { ...win("anthropic-api", 2, 0, 0, H3), login: "a", team: 0 }] as any);
-  assert.equal(s.tools.opencode, 5); assert.deepEqual(s.sides, { claude: 2, codex: 0 }); assert.equal(s.players[0].top, "opencode");
+  assert.equal(s.tools.opencode, 5); assert.equal(s.players[0].top, "opencode");
 });
 
 test("privacy: new sources emit only the six fields and no text", { skip: noSqlite }, () => {

@@ -1,21 +1,19 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BRAND } from "@/lib/brand";
-import { rankOf } from "@/lib/board";
 import { deriveBroadcast, jstDeadlineForDay, PLAY_VERB, remainingSeconds, type BroadcastPlay, type RoomData } from "@/lib/room-broadcast";
-import type { Side } from "@/lib/sides";
+import { AGENTS, type Agent } from "@/lib/agents";
 import { CommentaryTicker, Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
 import { TugBar } from "@/components/TugOfWar";
 import { ViewToggle } from "@/components/ViewToggle";
 
 type Clock = { nowMs: number; deadlineMs: number };
-type FeedFilter = "all" | Side;
+type FeedFilter = "all" | Agent;
 type Playback = { kind: "following" } | { kind: "paused"; entries: readonly BroadcastPlay[]; nowMs: number | null };
 
-const filters: readonly { value: FeedFilter; label: string }[] = [
-  { value: "all", label: "All" }, { value: "claude", label: "Claude" }, { value: "codex", label: "Codex" },
-];
+const COLOR = new Map(AGENTS.map((a) => [a.id, a.color]));
+const LABEL = new Map(AGENTS.map((a) => [a.id, a.label]));
 const duration = (seconds: number) => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((n) => String(n).padStart(2, "0")).join(":");
 const ago = (at: number, nowMs: number | null) => {
   if (nowMs === null) return "--";
@@ -45,8 +43,11 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
   const paused = playback.kind === "paused";
   const feed = paused ? playback.entries : model.feed;
   const feedNow = paused ? playback.nowMs : clock?.nowMs ?? null;
-  const entries = feed.filter((play) => filter === "all" || play.side === filter).slice(0, 9);
-  const topScore = model.stables[0]?.score ?? 0;
+  const entries = feed.filter((play) => filter === "all" || play.agent === filter).slice(0, 9);
+  const topScore = model.builders[0]?.score ?? 0;
+  const ranked = model.builders.slice(0, 6);
+  const filters: { value: FeedFilter; label: string }[] = [{ value: "all", label: "All" },
+    ...model.race.lanes.filter((l) => l.points).slice(0, 4).map((l) => ({ value: l.id, label: l.label }))];
   const countdown = clock ? remainingSeconds(clock) : null;
 
   return <main className="room-broadcast">
@@ -65,33 +66,34 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
       <JoinQr compact />
     </header>
 
-    <TugBar s={model.sides} variant="broadcast" />
+    <TugBar s={model.race} variant="broadcast" />
 
     <div className="bzk-middle">
       <section className="bzk-rankings" aria-labelledby="stable-title">
-        <div className="bzk-section-head"><h2 id="stable-title">Stable rankings <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2><span className="bzk-heading-note">Points</span></div>
+        <div className="bzk-section-head"><h2 id="stable-title">Builders <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2><span className="bzk-heading-note">Points</span></div>
         <ol className="bzk-rank-list">
-          {model.stables.map((stable, index) => <li key={stable.id} className={`bzk-rank-row ${stable.id % 2 === 0 ? "is-claude" : "is-codex"}`} style={{ transform: `translateY(${index * 100}%)` }}>
-            <span className="bzk-rank"><b lang="ja">{rankOf(index)[0]}</b><span>{rankOf(index)[1]}</span></span>
-            <span className="bzk-stable-name"><b>{stable.name}</b><span>{stable.builders} {stable.builders === 1 ? "builder" : "builders"}<span lang="ja" aria-hidden="true">{stable.jp}</span></span></span>
-            <span className="bzk-stable-score"><Count value={stable.score} /></span>
-            <span className="bzk-rank-track" aria-hidden="true"><i style={{ width: `${topScore ? stable.score / topScore * 100 : 0}%` }} /></span>
+          {ranked.map((b, index) => <li key={b.login} className="bzk-rank-row" style={{ transform: `translateY(${index * 100}%)`, ["--side" as string]: COLOR.get(b.agent) }}>
+            <span className="bzk-rank"><b className="num">#{index + 1}</b><span>{LABEL.get(b.agent)}</span></span>
+            <span className="bzk-stable-name"><b>@{b.login}</b><span>{b.plays} {b.plays === 1 ? "play" : "plays"}</span></span>
+            <span className="bzk-stable-score"><Count value={b.score} /></span>
+            <span className="bzk-rank-track" aria-hidden="true"><i style={{ width: `${topScore ? b.score / topScore * 100 : 0}%` }} /></span>
           </li>)}
+          {ranked.length === 0 && <li className="bzk-empty">Waiting for the first push — scan to join.</li>}
         </ol>
         <div className="bzk-rank-footer"><span>{data.players.length} registered builders · Last 72 hours</span><a href="/join#scoring">How points work</a></div>
       </section>
 
       <section className="bzk-plays" aria-labelledby="plays-title">
         <div className="bzk-section-head"><h2 id="plays-title">Latest plays</h2><button className="bzk-pause" type="button" aria-pressed={paused} onClick={() => setPlayback(paused ? { kind: "following" } : { kind: "paused", entries: model.feed, nowMs: clock?.nowMs ?? null })}><PlaybackIcon paused={paused} />{paused ? "Resume feed" : "Pause feed"}</button></div>
-        <div className="bzk-feed-tools"><div className="bzk-filters" role="group" aria-label="Filter plays by side">{filters.map(({ value, label }) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="bzk-feed-status">{paused ? "Feed paused" : live ? "Following live" : "Demo plays"}</span></div>
+        <div className="bzk-feed-tools"><div className="bzk-filters" role="group" aria-label="Filter plays by agent">{filters.map(({ value, label }) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="bzk-feed-status">{paused ? "Feed paused" : live ? "Following live" : "Demo plays"}</span></div>
         <ul className="bzk-play-list" aria-label={paused ? "Paused plays" : "Recent plays"}>
-          {entries.map((play) => <li key={play.id} className={play.side === "claude" ? "is-claude" : "is-codex"}>
-            <span className="bzk-play-side"><i aria-hidden="true" /><span className="bzk-sr-only">{play.side === "claude" ? "Claude Code" : "Codex"}</span></span>
+          {entries.map((play) => <li key={play.id} style={{ ["--side" as string]: COLOR.get(play.agent) }}>
+            <span className="bzk-play-side"><i aria-hidden="true" /><span className="bzk-sr-only">{LABEL.get(play.agent)}</span></span>
             <div className="bzk-play-copy"><div><b>@{play.login}</b><span className="bzk-play-kind">{play.kind === "push" ? "Push" : play.kind === "pr_merged" ? "Merged PR" : "Release"}</span></div><span className="bzk-play-label">{PLAY_VERB[play.kind]} {play.label}</span></div>
             <a className="bzk-play-points" href="/join#scoring" aria-label={`How ${play.points} points were scored`}>+{play.points}</a>
             <time className="bzk-play-age" dateTime={new Date(play.at).toISOString()}>{ago(play.at, feedNow)}</time>
           </li>)}
-          {entries.length === 0 && <li className="bzk-empty">{feed.length ? "No plays for this side yet." : "No plays yet. Join the match to get on the board."}</li>}
+          {entries.length === 0 && <li className="bzk-empty">{feed.length ? "No plays for this agent yet." : "Waiting for the first push — scan to join."}</li>}
         </ul>
         <p className="bzk-feed-note">Private work scores as <span>a private repo</span>.</p>
       </section>

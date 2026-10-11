@@ -26,7 +26,7 @@ test("summarize: tools, players, stables", () => {
     { ...w, tool: "claude", login: "a", team: 0 }, { ...w, tool: "codex", login: "b", team: 1, input: 100 },
     { ...w, tool: "codex", login: "a", team: 0 },
   ] as any);
-  assert.equal(s.tools.claude, 6); assert.equal(s.tools.codex, 111); assert.deepEqual(s.sides, { claude: 6, codex: 111 });
+  assert.equal(s.tools.claude, 6); assert.equal(s.tools.codex, 111);
   assert.deepEqual(s.players.map((p) => [p.login, p.total]), [["b", 105], ["a", 12]]);
   assert.deepEqual(s.stables, [{ team: 1, total: 105 }, { team: 0, total: 12 }]);
 });
