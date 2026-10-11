@@ -1,47 +1,56 @@
-# Pulse League
+# Banzuke 番付
 
-Teams of builders compete live on what they ship. Sign in with GitHub, get drafted onto a team, and every public push, merged PR and release scores for your team on a 24/7 broadcast: a world map that pings with each push, a live scoreboard, and a Grok play-by-play commentator.
+**A live leaderboard for the room, built and run by a Grok Bot team.**
+Builders sign in with GitHub, get sorted at random onto **Team Blue** or **Team Orange**, and every push, merged PR and release scores live on a projector board.
 
-**Status:** hackathon v1 scaffold (Grok Bot Tokyo Hackathon, Oct 11, 2026). Token-count scoring comes in v2 with a local CLI.
+Live: **https://banzuke.raitox.tech** · Join: **https://banzuke.raitox.tech/join**
+Built at the Grok Bot Tokyo Hackathon (Oct 11, 2026).
 
-## Run it now (demo mode)
+## What it does
+- **Instant score:** signing in with GitHub backfills your last 72 hours of public activity.
+- **Private repos count, privately:** install the [GitHub App](https://github.com/apps/banzukeboard/installations/new) and private pushes score. Repo names and commit messages are never stored or shown.
+- **Team battle:** Blue vs Orange with a two-sided bar and a 逆転 flash when the lead flips. Teams are assigned by hashing your GitHub login: random, but fixed and evenly split.
+- **Agent stats:** shows which coding agent shipped each play (Claude Code, Codex, Cursor, Devin, OpenCode, Grok, Copilot), detected from co-authors and branch names.
+- **AI fuel:** the opt-in `banzuke` CLI totals local token usage and sends only the numbers to `/fuel`.
+- **Works with your Grok Bot:** a public API plus a skill file let anyone's Grok Bot check how its human is doing.
 
-```bash
-npm install && npm run dev
-```
+## The Grok Bot team
+| Bot | Role |
+|---|---|
+| **Wright** | Lead engineer: architecture, backend, CLI, tests, deploys; writes GitHub issues for Codex and reviews its PRs |
+| **Gyoji** | Live commentator: turns board data into play-by-play, never leaks private repos |
+| **Recruiter** | Writes EN/JP invites and FAQs (human approves every send) |
+| **Ops** | Health checks pages and the webhook, watches logs, reports fixes |
+| Human (らいと) | Direction, design calls, approvals. Codex built the broadcast UI from Wright's issues |
 
-No `NEXT_PUBLIC_CONVEX_URL` = demo mode (fake room incl. private plays). With Convex: `npx convex dev` in a second terminal. Going live: see **GO-LIVE.md**. Tests: `npm test` (private-repo stripping, backfill, dedupe).
-
-## How it works
-
-- `/` Room board (Convex, reactive `useQuery`), big QR to `/join`. `/global` public firehose, no sign-in.
-- `/join` GitHub sign-in (Convex Auth) → drafted into the smallest of 6 stables → `room.backfill` action scores the last 72h of `/users/{login}/events/public` (≤3 pages).
-- GitHub App webhook → `convex/http.ts` `/github/webhook` (HMAC verified) → `room.recordWebhook`.
-- All plays go through `lib/ingest.ts` `toRow()`. **Private repos keep only login, kind, points, time**; repo and summary are blanked before insert and `assertClean` refuses anything else. `dedupeKey` is a one-way hash shared by webhook and backfill (push = head sha), so nothing double-counts.
-
-## Scoring (`lib/scoring.ts`)
-
-| Play | Points | Guard rails |
-|---|---|---|
-| Push | 1 per counted commit | max 5 commits per push, 12 push points per hour; bots, merges, empty and duplicate commits ignored |
-| Merged PR | 10 (+2 at 10★, +5 at 50★) | |
-| Release | 25 (prerelease 12) | |
-
-Public and private repos count (private shown as "a private repo"). Each play is stored once (`dedupeKey`).
-
-## Next up
-
-- Player cities on the map (now a hashed spot near Tokyo until they set one)
-- Weekly seasons, promotion and relegation
-- v2: `pulse` CLI that reads Claude Code / Codex usage for token and efficiency boards
-- Stream the page 24/7 (headless browser → OBS/ffmpeg → YouTube/Twitch)
+## Stack
+- **Next.js 15** (React, TypeScript) on **Vercel**, with the custom domain on Cloudflare DNS
+- **Convex**: realtime database, queries and mutations, and Convex Auth (GitHub)
+- **GitHub App webhook** (HMAC verified) for live and private scoring, plus the GitHub public events API for the 72h backfill
+- **Node CLI** (`cli/banzuke.mjs`) with an interactive terminal UI
 
 ## Use with your Grok Bot
-
-Paste this into your Grok Bot:
-
 ```
 Read https://raw.githubusercontent.com/raitoxlol/banzuke/main/grokbot/SKILL.md and save it as a skill, then tell me how I'm doing on Banzuke (my GitHub is <login>).
 ```
+Public read-only API: `GET /api/status?login=<github>` and `GET /api/board`.
 
-Public read-only API (CORS open, cached 15s): `GET /api/status?login=<github>` and `GET /api/board`. Private repo names and commit messages are never returned.
+## AI fuel CLI
+```bash
+npx github:raitoxlol/banzuke          # setup + sync
+npx github:raitoxlol/banzuke --demo   # sample data
+```
+
+## Scoring
+| Play | Points |
+|---|---|
+| Push | 1 per counted commit (max 5 per push, 12 push points per hour) |
+| Merged PR | 10 (+2 at 10★, +5 at 50★) |
+| Release | 25 (prerelease 12) |
+
+## Run locally
+```bash
+npm install && npm run dev   # demo mode without NEXT_PUBLIC_CONVEX_URL
+npx convex dev               # live backend
+npm test
+```
