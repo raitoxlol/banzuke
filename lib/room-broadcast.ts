@@ -1,6 +1,6 @@
 import { playLabel } from "./ingest";
 import type { Answers } from "./quiz";
-import { tallyTeams } from "./teams";
+import { tallyTeams, teamMap, TEAMS } from "./teams";
 import { agentLabel, playAgent, playerAgent, tallyRace, type Agent, type Race } from "./agents";
 
 export interface RoomData {
@@ -58,9 +58,10 @@ export function deriveBroadcast(data: RoomData): BroadcastModel {
   const race = tallyRace(data.players, ordered);
   const latest = feed[0];
   const tr = tallyTeams(data.players, ordered);
+  const tOfB = teamMap(data.players);
   const lead = tr.leader !== null ? `${tr.sides[tr.leader].name} が${tr.sides[tr.leader].points}対${tr.sides[1 - tr.leader].points}でリード。` : race.total ? "首位は同点。" : "";
   const commentary = latest
-    ? `@${latest.login} が${latest.private ? "非公開リポジトリ" : latest.label}に${PLAY_VERB[latest.kind]}。${latest.agent === "human" ? "手動・その他" : agentLabel(latest.agent)} に+${latest.points}点。${lead}`.trim()
+    ? `@${latest.login} が${latest.private ? "非公開リポジトリ" : latest.label}に${PLAY_VERB[latest.kind]}。${TEAMS[tOfB(latest.login)]} に+${latest.points}点。${lead}`.trim()
     : "最初のプッシュを待っています。QRコードからGitHubでログインすると、過去72時間の活動が得点に加算されます。";
   return { race, builders, feed, commentary };
 }

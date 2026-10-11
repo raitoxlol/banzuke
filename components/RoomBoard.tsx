@@ -5,7 +5,7 @@ import { deriveBroadcast, jstDeadlineForDay, PLAY_VERB, remainingSeconds, type B
 import { AGENTS, type Agent } from "@/lib/agents";
 import { CommentaryTicker, Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
-import { TeamTugBar, AgentChips } from "@/components/TugOfWar";
+import { TeamTugBar } from "@/components/TugOfWar";
 import { tallyTeams, teamMap, TEAMS, TEAM_COLORS } from "@/lib/teams";
 import { ViewToggle } from "@/components/ViewToggle";
 
@@ -46,7 +46,7 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
   const paused = playback.kind === "paused";
   const feed = paused ? playback.entries : model.feed;
   const feedNow = paused ? playback.nowMs : clock?.nowMs ?? null;
-  const entries = feed.filter((play) => filter === "all" || play.agent === filter).slice(0, 9);
+  const entries = feed.slice(0, 9);
   const topScore = model.builders[0]?.score ?? 0;
   const ranked = model.builders.slice(0, 6);
   const filters: { value: FeedFilter; label: string }[] = [{ value: "all", label: "すべて" },
@@ -69,7 +69,7 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
       <JoinQr compact />
     </header>
 
-    <div className="bzk-match"><TeamTugBar t={teams} /><AgentChips s={model.race} /></div>
+    <div className="bzk-match"><TeamTugBar t={teams} /></div>
 
     <div className="bzk-middle">
       <section className="bzk-rankings" aria-labelledby="stable-title">
@@ -88,10 +88,10 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
 
       <section className="bzk-plays" aria-labelledby="plays-title">
         <div className="bzk-section-head"><h2 id="plays-title">最新の活動</h2><button className="bzk-pause" type="button" aria-pressed={paused} onClick={() => setPlayback(paused ? { kind: "following" } : { kind: "paused", entries: model.feed, nowMs: clock?.nowMs ?? null })}><PlaybackIcon paused={paused} />{paused ? "更新を再開" : "更新を一時停止"}</button></div>
-        <div className="bzk-feed-tools"><div className="bzk-filters" role="group" aria-label="エージェントで活動を絞り込む">{filters.map(({ value, label }) => <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div><span className="bzk-feed-status">{paused ? "更新を一時停止中" : live ? "ライブ更新中" : "デモの活動"}</span></div>
+        <div className="bzk-feed-tools"><div /><span className="bzk-feed-status">{paused ? "更新を一時停止中" : live ? "ライブ更新中" : "デモの活動"}</span></div>
         <ul className="bzk-play-list" aria-label={paused ? "一時停止中の活動" : "最近の活動"}>
-          {entries.map((play) => <li key={play.id} style={{ ["--side" as string]: COLOR.get(play.agent) }}>
-            <span className="bzk-play-side"><i aria-hidden="true" /><span className="bzk-sr-only">{LABEL.get(play.agent)}</span></span>
+          {entries.map((play) => <li key={play.id} style={{ ["--side" as string]: TEAM_COLORS[tOf(play.login)] }}>
+            <span className="bzk-play-side"><i aria-hidden="true" /><span className="bzk-sr-only">{TEAMS[tOf(play.login)]}</span></span>
             <div className="bzk-play-copy"><div><b>@{play.login}</b><span className="bzk-play-kind">{play.kind === "push" ? "プッシュ" : play.kind === "pr_merged" ? "PRマージ" : "リリース"}</span></div><span className="bzk-play-label">{play.private ? "非公開リポジトリ" : play.label} に{PLAY_VERB[play.kind]}</span></div>
             <a className="bzk-play-points" href="/join#scoring" aria-label={`${play.points}点の得点ルールを見る`}>+{play.points}</a>
             <time className="bzk-play-age" dateTime={new Date(play.at).toISOString()}>{ago(play.at, feedNow)}</time>

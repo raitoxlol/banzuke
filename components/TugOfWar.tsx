@@ -75,7 +75,7 @@ export function TugDemo() {
     const timer = setInterval(tick, 2000);
     return () => clearInterval(timer);
   }, []);
-  return <><TeamTugBar t={tt} big /><AgentChips s={s} /></>;
+  return <><TeamTugBar t={tt} big /></>;
 }
 
 /** Team A vs Team B: one two-sided bar. 逆転 flashes when the lead flips. */
@@ -126,5 +126,5 @@ export function AgentChips({ s }: { s: Race }) {
 export function TeamTugLive() {
   const d = useQuery(api.room.board);
   const players = d?.players ?? [], plays = d?.plays ?? [];
-  return <><TeamTugBar t={tallyTeams(players, plays)} big /><AgentChips s={tallyRace(players, plays)} /></>;
+  return <><TeamTugBar t={tallyTeams(players, plays)} big /></>;
 }

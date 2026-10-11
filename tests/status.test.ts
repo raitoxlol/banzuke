@@ -25,5 +25,5 @@ test("status never leaks private repo names or commit text", () => {
 });
 test("board top + race", () => {
   const b = boardFor(snap);
-  assert.equal(b.top[0].login, "b"); assert.equal(b.race.find((l) => l.agent === "codex")!.points, 20);
+  assert.equal(b.top[0].login, "b"); assert.equal(b.teams[0].points + b.teams[1].points, 30); assert.ok(!("race" in b)); assert.ok(!JSON.stringify(b).includes("codex"));
 });

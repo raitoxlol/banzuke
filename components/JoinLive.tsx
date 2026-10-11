@@ -8,7 +8,7 @@ import { AGENTS, agentLabel } from "@/lib/agents";
 import { QUESTIONS, type Answers } from "@/lib/quiz";
 import { APP_INSTALL, CLI_CONNECT, CLI_PREVIEW, STEPS, completeChoice, initialJoinState, parseAnswers, parseProgress, reduceJoin, type Step } from "@/lib/onboarding";
 
-const TITLES: Record<Step, string> = { signIn: "GitHubアカウント", agent: "エージェント", privateRepos: "非公開リポジトリ", cliSetup: "CLIの準備", cliConnect: "CLIを接続", finish: "番付を開く" };
+const TITLES: Record<Step, string> = { signIn: "GitHubアカウント", privateRepos: "非公開リポジトリ", cliSetup: "CLIの準備", cliConnect: "CLIを接続", finish: "番付を開く" };
 const storageKey = (login: string) => `banzuke.join.v1:${login.toLowerCase()}`;
 
 function useJoinFlow() {
@@ -77,7 +77,6 @@ function useJoinFlow() {
   };
   const evidence = (step: Step) => {
     if (step === "signIn") return joined ? "参加済み" : "待機中";
-    if (step === "agent" && answers) return "保存済み";
     if (step === "privateRepos" && activeInstall) return "App連携済み";
     if (step === "cliConnect" && connected) return "接続済み";
     if (step === "cliSetup" && state.progress.cliReady) return "準備完了";
@@ -94,7 +93,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
   const picked = quiz?.epoch === state.epoch ? quiz.answers : null;
   const question = picked ? QUESTIONS.find((q) => !picked[q.key]) : null;
   const step = state.progress.step;
-  const next = () => dispatch({ type: "go", step: STEPS[Math.min(5, STEPS.indexOf(step) + 1)] });
+  const next = () => dispatch({ type: "go", step: STEPS[Math.min(STEPS.length - 1, STEPS.indexOf(step) + 1)] });
   const skip = () => { if (step !== "signIn" && step !== "finish") dispatch({ type: "skip", step }); };
   const retry = () => { if (state.attempt.kind === "failed") void flow.save(state.attempt.answers); };
   const chooseQuiz = (key: keyof Answers, value: string) => {
@@ -110,7 +109,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
       </button></li>)}
     </ol>
     <section className="product-panel join-active" aria-labelledby="join-step-title">
-      <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>手順 {STEPS.indexOf(step) + 1} / 6{step !== "signIn" && step !== "finish" ? " · 任意" : ""}</p></div>
+      <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>手順 {STEPS.indexOf(step) + 1} / {STEPS.length}{step !== "signIn" && step !== "finish" ? " · 任意" : ""}</p></div>
       {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "得点を読み込み中…" : <><strong>{points}</strong>点（会場の番付）</>}</span><span className="join-team" style={{ color: TEAM_COLORS[resolveTeam(currentLogin, flow.side)], fontWeight: 900 }}>所属：{TEAMS[resolveTeam(currentLogin, flow.side)]}</span></p>}
       {currentLogin && flow.joined && <div className="join-team-pick" style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, margin: "8px 0 16px" }}>
         {([0, 1] as const).map((t) => <button key={t} type="button" aria-pressed={resolveTeam(currentLogin, flow.side) === t} onClick={() => void flow.pickTeam(t)}
@@ -122,16 +121,6 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
         {step === "signIn" && <>
           <p>ログインして会場に参加しましょう。新しく参加すると、過去72時間の公開活動の取り込みが始まります。</p>
           {currentLogin ? <><p role="status">{joined ? "番付に登録されました。公開活動が届くたびに得点が更新されます。" : busy ? "番付に登録中…" : "ログイン済みです。参加の登録はまだ完了していません。"}</p><p className="product-muted">上に表示されているのは現在の会場での合計得点です。活動の取り込みはバックグラウンドで進みます。</p><button onClick={next} disabled={!joined || busy}>次へ：エージェントを選ぶ</button></> : <><button onClick={() => void flow.authenticate()}>{icon}GitHubでログイン</button><button className="secondary" onClick={next}>観戦を続ける</button></>}
-        </>}
-        {step === "agent" && <>
-          <p>コミットにエージェント名がない場合の集計先を選びます。コミットに記載されたエージェント名が優先されます。</p>
-          {answers && <p className="product-confirmed">アカウントに保存済み · {answers.tool === "human" ? "手動・その他" : agentLabel(answers.tool)}</p>}
-          {!currentLogin && <p className="product-muted">選択を保存するには手順1でログインしてください。ログインせずに観戦を続けることもできます。</p>}
-          {picked ? <div className="join-quiz">
-            {question ? <><p>質問 {QUESTIONS.indexOf(question) + 1} / {QUESTIONS.length}</p><h3>{question.q}</h3><div className="choice-grid">{question.opts.map(([value, label]) => <button className="secondary" key={value} disabled={busy} onClick={() => chooseQuiz(question.key, value)}>{label}</button>)}</div></> : <p role="status">{busy ? "回答を保存中…" : "回答の準備ができました。保存してください。"}</p>}
-            <button className="text-button" disabled={busy} onClick={() => setQuiz(null)}>直接選択に戻る</button>
-          </div> : <><div className="choice-grid">{AGENTS.map((agent) => <button key={agent.id} className="secondary agent-choice" aria-pressed={answers?.tool === agent.id} disabled={busy || !joined} onClick={() => void flow.save(completeChoice(agent.id, answers))}><i style={{ background: agent.color }} aria-hidden="true" />{agent.id === "human" ? "手動・その他" : agent.label}</button>)}</div><p className="product-muted">直接選択では保存済みの回答を引き継ぎます。未回答の場合は「午後3時」「すべて承認」「自分で直す」を使用します。</p><button className="secondary" disabled={!joined || busy} onClick={() => setQuiz({ epoch: state.epoch, answers: {} })}>4問のクイズに答える</button></>}
-          <div className="step-actions"><button onClick={next} disabled={!answers || busy}>次へ</button><button className="text-button" onClick={skip} disabled={busy}>後で設定する</button></div>
         </>}
         {step === "privateRepos" && <>
           <p>非公開リポジトリを含め、リアルタイムで得点を集計したいリポジトリにGitHub Appをインストールしてください。</p><p className="product-muted">非公開リポジトリの名前やコミットメッセージは番付に表示されません。</p>
@@ -157,7 +146,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
         </>}
         {step === "finish" && <>
           <h3>{joined ? "番付に参加しました。" : "観戦の準備ができました。"}</h3><p>{joined ? "開発を進めて得点を積み上げましょう。選んだエージェントと確認済みの連携はアカウントに保存されます。" : "会場を観戦するか、手順1に戻ってログインして参加しましょう。"}</p>
-          <ul className="join-summary">{STEPS.slice(0, 5).map((s) => <li key={s}><span>{TITLES[s]}</span><span>{flow.evidence(s)}</span><button className="text-button" onClick={() => dispatch({ type: "go", step: s })}>設定に戻る</button></li>)}</ul>
+          <ul className="join-summary">{STEPS.slice(0, -1).map((s) => <li key={s}><span>{TITLES[s]}</span><span>{flow.evidence(s)}</span><button className="text-button" onClick={() => dispatch({ type: "go", step: s })}>設定に戻る</button></li>)}</ul>
           <a href="/" className="product-button">{joined ? "会場の番付を開く" : "会場を観戦する"}</a>
         </>}
       </>}

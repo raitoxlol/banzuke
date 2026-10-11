@@ -23,7 +23,7 @@ test("broadcast ranks real builders, tags agents (detected > pick > human), keep
   assert.equal(model.feed.find((e) => e.id === "new")?.agent, "cursor");
   assert.equal(model.feed[0].id, "orphan");
   assert.equal(model.feed[0].agent, "human");
-  assert.ok(model.commentary.includes("手動・その他 に+10点"));
+  assert.ok(/Team (Blue|Orange) に\+10点/.test(model.commentary));
   assert.deepEqual(data.plays.map((entry) => entry.id), ["old", "new", "orphan"]);
 });
 

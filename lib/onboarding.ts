@@ -1,7 +1,7 @@
 import { isAgent, type Agent } from "./agents";
 import type { Answers } from "./quiz";
 
-export const STEPS = ["signIn", "agent", "privateRepos", "cliSetup", "cliConnect", "finish"] as const;
+export const STEPS = ["signIn", "privateRepos", "cliSetup", "cliConnect", "finish"] as const;
 export type Step = typeof STEPS[number];
 export type OptionalStep = Exclude<Step, "signIn" | "finish">;
 export type Progress = { version: 1; login: string; step: Step; skipped: OptionalStep[]; cliReady: boolean };
@@ -42,7 +42,7 @@ export function reduceJoin(state: JoinState, event: JoinEvent): JoinState {
     case "skip": return { ...state, progress: { ...state.progress, skipped: [...new Set([...state.progress.skipped, event.step])], step: STEPS[STEPS.indexOf(event.step) + 1] } };
     case "ready": return { ...state, progress: { ...state.progress, cliReady: true, skipped: state.progress.skipped.filter((s) => s !== "cliSetup"), step: "cliConnect" } };
     case "start": return { ...state, attempt: { kind: "pending", target: event.target } };
-    case "success": return { ...state, attempt: { kind: "idle" }, joined: true, progress: event.target === "choice" ? { ...state.progress, step: "privateRepos", skipped: state.progress.skipped.filter((s) => s !== "agent") } : state.progress };
+    case "success": return { ...state, attempt: { kind: "idle" }, joined: true, progress: event.target === "choice" ? { ...state.progress, step: "privateRepos", skipped: state.progress.skipped } : state.progress };
     case "failure": return { ...state, attempt: { kind: "failed", target: event.target, message: event.message, answers: event.answers } };
     case "storageFailed": return { ...state, storageAvailable: false };
   }

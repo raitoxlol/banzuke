@@ -10,7 +10,7 @@ Built at the Grok Bot Tokyo Hackathon (Oct 11, 2026).
 - **Instant score:** signing in with GitHub backfills your last 72 hours of public activity.
 - **Private repos count, privately:** install the [GitHub App](https://github.com/apps/banzukeboard/installations/new) and private pushes score. Repo names and commit messages are never stored or shown.
 - **Team battle:** Blue vs Orange with a two-sided bar and a 逆転 flash when the lead flips. Teams are assigned by hashing your GitHub login: random, but fixed and evenly split.
-- **Agent stats:** shows which coding agent shipped each play (Claude Code, Codex, Cursor, Devin, OpenCode, Grok, Copilot), detected from co-authors and branch names.
+- **Team battle:** Team Blue vs Team Orange. Pick a side on /join (or get a random one). Per-agent token counts live only on /fuel.
 - **AI fuel:** the opt-in `banzuke` CLI totals local token usage and sends only the numbers to `/fuel`.
 - **Works with your Grok Bot:** a public API plus a skill file let anyone's Grok Bot check how its human is doing.
 
