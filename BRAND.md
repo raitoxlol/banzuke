@@ -75,3 +75,15 @@ Checked Oct 11, 2026. .com via Verisign RDAP. GitHub via the users API. Taken me
 | Commit Clash | Team versus team, built on commits. | taken | looks free |
 | Merge League | Close to the current name, more dev-specific. | taken | looks free |
 | Live Commit | Plain and literal. | looks free | taken (user) |
+
+## Global mode (branch `global`)
+
+No sign-in. Every public GitHub account is on the board. The page at `/` is the global broadcast; the original sign-in league is kept at `/league`.
+
+**Data.** `/api/firehose` polls `https://api.github.com/events?per_page=100`, honouring `ETag` (304s are free) and `X-Poll-Interval` (60s). It keeps a one-hour rolling window in memory per warm instance. `GITHUB_TOKEN` is optional (raises the limit to 5,000/hr and pulls 3 pages per poll). If the server is rate-limited, the browser polls the same endpoint directly on its own 60/hr budget. If that fails too, the badge flips to DEMO and fake plays run. The public feed is a sample of GitHub, about 5 minutes behind, and push events no longer include commit lists, so each push scores 1 point (capped at 12 per builder per hour, as in `lib/scoring.ts`). Merged PRs score 10 (+ star bonus), releases 25 (12 for pre-releases), and stars score 0 but flash on the ring. Bots are filtered out.
+
+**Teams: random draft (default).** Each GitHub login is hashed with the basho (season) key into one of six stables named after real sumo heya: Isegahama, Sadogatake, Kokonoe, Dewanoumi, Takadagawa and Nishonoseki. The basho is the JST date, so everyone gets redrafted every day; `?basho=anything` forces a custom draw. It costs zero API calls, it's fair and it's stable within a season. Country and region teams were rejected as boring and too expensive (every profile would need a lookup). Language teams exist as an opt-in experiment (`GITHUB_TOKEN` + `BANZUKE_LANG_TEAMS=1`).
+
+**Relevant mode.** `?seed=<github login>` (or type it in the header box). The browser fetches that user's following, followers and the stargazers of their most-starred repo (small N, cached in localStorage for 30 minutes), then highlights those builders wherever they appear in the firehose. It also polls `/users/{login}/events/public` for the seed and one circle member every 2.5 minutes, so their plays land even when the sample misses them. The "Top builders" panel puts your circle first. X handles: `?seed=x:handle` tries the same login on GitHub; there's no reliable public X-to-GitHub lookup, so the user supplies the GitHub login.
+
+**Broadcast.** Five big counters (pushes per minute sampled, builders, merges, releases, stars). A dohyo ring in the middle has one wedge per stable. Builders drift toward the centre as they score, and every play flashes on the rim. Stables and top builders are ranked Yokozuna to Maegashira. A TORIKUMI 取組 callout fires when two stables swap places. Commentary comes from templates built on real plays, and `/api/commentary` stays available for xAI.
