@@ -260,6 +260,7 @@ aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 @keyframes bzk-live-pulse { 50% { opacity: .45; } }
 .room-broadcast .bzk-header-bottom { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
 .room-broadcast .bzk-room-label { font-size: 14px; color: var(--muted); }
+.room-broadcast .bzk-join-cta { display: none; }
 .room-broadcast .view-toggle { position: static; padding: 0; border: 0; background: none; gap: 4px; font-size: 14px; }
 .room-broadcast .view-toggle a { padding: 5px 10px; border-radius: 4px; }
 .room-broadcast .view-toggle a.on { box-shadow: none; background: var(--surface-2); color: var(--fg); }
@@ -395,6 +396,10 @@ aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   .room-broadcast .bzk-join-qr { grid-column: 2; grid-row: 1 / 3; flex-direction: column-reverse; gap: 8px; text-align: center; }
   .room-broadcast .bzk-join-copy span { display: none; }
   .room-broadcast .bzk-header-bottom { margin-top: 12px; }
+  .room-broadcast .bzk-header-bottom:has(.bzk-join-cta) { gap: 8px; }
+  .room-broadcast .bzk-header-bottom:has(.bzk-join-cta) .view-toggle a.on { display: none; }
+  .room-broadcast .bzk-join-cta { display: inline-flex; align-items: center; justify-content: center; padding: 5px 9px; border-radius: 4px; background: var(--codex); color: var(--bg); font-size: 13px; font-weight: 600; white-space: nowrap; text-decoration: none; }
+  .room-broadcast .bzk-join-cta:hover { background: var(--fg); }
   .room-broadcast .bzk-middle { grid-template-columns: 1fr; }
   .room-broadcast .bzk-rank-list { height: 348px; min-height: 348px; flex: none; }
   .room-broadcast .bzk-plays { min-height: 460px; }

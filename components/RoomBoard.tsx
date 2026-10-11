@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BRAND } from "@/lib/brand";
 import { rankOf } from "@/lib/board";
 import { deriveBroadcast, jstDeadlineForDay, PLAY_VERB, remainingSeconds, type BroadcastPlay, type RoomData } from "@/lib/room-broadcast";
@@ -29,7 +29,7 @@ function PlaybackIcon({ paused }: { paused: boolean }) {
   </svg>;
 }
 
-export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
+export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boolean; joinCta?: ReactNode }) {
   const model = useMemo(() => deriveBroadcast(data), [data]);
   const [clock, setClock] = useState<Clock | null>(null);
   const [filter, setFilter] = useState<FeedFilter>("all");
@@ -56,7 +56,7 @@ export function RoomBoard({ data, live }: { data: RoomData; live: boolean }) {
           <h1>{BRAND.name.toUpperCase()} <span className="bzk-edition">#1J</span></h1>
           <span className={`bzk-status ${live ? "is-live" : "is-demo"}`}><i aria-hidden="true" />{live ? "LIVE" : "DEMO"}</span>
         </div>
-        <div className="bzk-header-bottom"><span className="bzk-room-label">Tokyo room board</span><ViewToggle view="room" /></div>
+        <div className="bzk-header-bottom"><span className="bzk-room-label">Tokyo room board</span>{joinCta}<ViewToggle view="room" /></div>
       </div>
       <dl className="bzk-clocks">
         <div><dt>Time in Japan</dt><dd><time>{clock ? new Date(clock.nowMs).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo" }) : "--:--:--"}</time><span>JST</span></dd></div>
