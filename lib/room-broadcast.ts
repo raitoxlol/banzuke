@@ -1,5 +1,6 @@
 import { playLabel } from "./ingest";
 import type { Answers } from "./quiz";
+import { tallyTeams } from "./teams";
 import { agentLabel, playAgent, playerAgent, tallyRace, type Agent, type Race } from "./agents";
 
 export interface RoomData {
@@ -56,7 +57,8 @@ export function deriveBroadcast(data: RoomData): BroadcastModel {
   }).sort((a, b) => b.score - a.score || a.login.localeCompare(b.login));
   const race = tallyRace(data.players, ordered);
   const latest = feed[0];
-  const lead = race.leader ? `${agentLabel(race.leader)} leads the race with ${race.lanes[0].points}.` : race.total ? "Dead heat at the top." : "";
+  const tr = tallyTeams(data.players, ordered);
+  const lead = tr.leader !== null ? `${tr.sides[tr.leader].name} leads ${tr.sides[tr.leader].points}–${tr.sides[1 - tr.leader].points}.` : race.total ? "Dead heat at the top." : "";
   const commentary = latest
     ? `@${latest.login} ${PLAY_VERB[latest.kind]} ${latest.label}. +${latest.points} for ${agentLabel(latest.agent)}. ${lead}`.trim()
     : "Waiting for the first push. Scan to join: sign in with GitHub and your last 72 hours count.";

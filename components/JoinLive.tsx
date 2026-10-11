@@ -1,4 +1,5 @@
 "use client";
+import { teamName, teamOf, TEAM_COLORS } from "@/lib/teams";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
@@ -105,7 +106,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
     </ol>
     <section className="product-panel join-active" aria-labelledby="join-step-title">
       <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>Step {STEPS.indexOf(step) + 1} of 6{step !== "signIn" && step !== "finish" ? " · Optional" : ""}</p></div>
-      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "Loading your points…" : <><strong>{points}</strong> points on the room board</>}</span></p>}
+      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "Loading your points…" : <><strong>{points}</strong> points on the room board</>}</span><span className="join-team" style={{ color: TEAM_COLORS[teamOf(currentLogin)], fontWeight: 900 }}>You're on {teamName(currentLogin)}</span></p>}
       {loading ? <p role="status" className="product-empty">Loading your GitHub account…</p> : <>
         {step === "signIn" && <>
           <p>Sign in to join the room. New members start a public activity import from the last 72 hours.</p>

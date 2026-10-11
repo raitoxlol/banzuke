@@ -13,7 +13,7 @@ const snap = {
 
 test("status ranks and neighbours", () => {
   const s = statusFor(snap, "A")!;
-  assert.equal(s.rank, 2); assert.equal(s.points, 10);
+  assert.equal(s.rank, 2); assert.match(s.team, /^Team /); assert.equal(s.points, 10);
   assert.deepEqual(s.ahead, { login: "b", points: 20 }); assert.deepEqual(s.behind, { login: "c", points: 0 });
   assert.equal(statusFor(snap, "zzz"), null);
 });

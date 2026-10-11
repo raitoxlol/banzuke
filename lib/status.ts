@@ -1,3 +1,4 @@
+import { teamName, tallyTeams } from "./teams";
 import { playAgent, playerAgent, tallyRace, type Agent } from "./agents";
 
 export const BOARD_URL = "https://banzuke.raitox.tech";
@@ -12,7 +13,7 @@ export function standings({ players, plays }: Snapshot) {
   for (const p of plays) pts.set(p.login, (pts.get(p.login) ?? 0) + p.points);
   const by = new Map(players.map((p) => [p.login, p]));
   return [...pts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([login, points], i) => ({ rank: i + 1, login, points, agent: playerAgent(by.get(login) as any) }));
+    .map(([login, points], i) => ({ rank: i + 1, login, team: teamName(login), points, agent: playerAgent(by.get(login) as any) }));
 }
 
 /** Public status for one login, or null. Never exposes private repo names or any commit text. */
@@ -26,13 +27,15 @@ export function statusFor(snap: Snapshot, login: string) {
     .map((p) => ({ at: new Date(p.at).toISOString(), kind: p.kind, points: p.points, agent: playAgent(p, player as any),
       repo: p.private || !p.repo ? "private" : p.repo }));
   const pick = (r?: { login: string; points: number }) => (r ? { login: r.login, points: r.points } : null);
-  return { login: me.login, rank: me.rank, of: rows.length, points: me.points, agent: me.agent, last72hPoints: me.points,
+  return { login: me.login, team: me.team, rank: me.rank, of: rows.length, points: me.points, agent: me.agent, last72hPoints: me.points,
     recentPlays, ahead: pick(rows[i - 1]), behind: pick(rows[i + 1]), boardUrl: BOARD_URL };
 }
 
 export function boardFor(snap: Snapshot) {
   const race = tallyRace(snap.players as any, snap.plays);
-  return { top: standings(snap).slice(0, 10), race: race.lanes.map(({ id, label, points, builders }) => ({ agent: id, label, points, builders })),
+  const t = tallyTeams(snap.players, snap.plays);
+  return { teams: t.sides.map(({ name, points, builders }) => ({ name, points, builders })), leadingTeam: t.leader === null ? null : t.sides[t.leader].name,
+    top: standings(snap).slice(0, 10), race: race.lanes.map(({ id, label, points, builders }) => ({ agent: id, label, points, builders })),
     leader: race.leader, updatedAt: new Date().toISOString(), boardUrl: BOARD_URL };
 }
 

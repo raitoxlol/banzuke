@@ -5,7 +5,8 @@ import { deriveBroadcast, jstDeadlineForDay, PLAY_VERB, remainingSeconds, type B
 import { AGENTS, type Agent } from "@/lib/agents";
 import { CommentaryTicker, Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
-import { TugBar } from "@/components/TugOfWar";
+import { TeamTugBar, AgentChips } from "@/components/TugOfWar";
+import { tallyTeams, teamOf, TEAMS, TEAM_COLORS } from "@/lib/teams";
 import { ViewToggle } from "@/components/ViewToggle";
 
 type Clock = { nowMs: number; deadlineMs: number };
@@ -29,6 +30,7 @@ function PlaybackIcon({ paused }: { paused: boolean }) {
 
 export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boolean; joinCta?: ReactNode }) {
   const model = useMemo(() => deriveBroadcast(data), [data]);
+  const teams = useMemo(() => tallyTeams(data.players, data.plays), [data]);
   const [clock, setClock] = useState<Clock | null>(null);
   const [filter, setFilter] = useState<FeedFilter>("all");
   const [playback, setPlayback] = useState<Playback>({ kind: "following" });
@@ -66,14 +68,14 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
       <JoinQr compact />
     </header>
 
-    <TugBar s={model.race} variant="broadcast" />
+    <div><TeamTugBar t={teams} /><AgentChips s={model.race} /></div>
 
     <div className="bzk-middle">
       <section className="bzk-rankings" aria-labelledby="stable-title">
         <div className="bzk-section-head"><h2 id="stable-title">Builders <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2><span className="bzk-heading-note">Points</span></div>
         <ol className="bzk-rank-list">
-          {ranked.map((b, index) => <li key={b.login} className="bzk-rank-row" style={{ transform: `translateY(${index * 100}%)`, ["--side" as string]: COLOR.get(b.agent) }}>
-            <span className="bzk-rank"><b className="num">#{index + 1}</b><span>{LABEL.get(b.agent)}</span></span>
+          {ranked.map((b, index) => <li key={b.login} className="bzk-rank-row" style={{ transform: `translateY(${index * 100}%)`, ["--side" as string]: TEAM_COLORS[teamOf(b.login)] }}>
+            <span className="bzk-rank"><b className="num">#{index + 1}</b><span>{TEAMS[teamOf(b.login)].replace("Team ", "")}</span></span>
             <span className="bzk-stable-name"><b>@{b.login}</b><span>{b.plays} {b.plays === 1 ? "play" : "plays"}</span></span>
             <span className="bzk-stable-score"><Count value={b.score} /></span>
             <span className="bzk-rank-track" aria-hidden="true"><i style={{ width: `${topScore ? b.score / topScore * 100 : 0}%` }} /></span>
