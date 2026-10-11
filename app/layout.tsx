@@ -5,9 +5,10 @@ const sans = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 import type { ReactNode } from "react";
 import { BRAND } from "@/lib/brand";
+import { Providers } from "@/components/Providers";
 
 export const metadata = { title: BRAND.name, description: BRAND.tagline };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html lang="en" className={`${sans.variable} ${mono.variable}`}><body>{children}</body></html>;
+  return <html lang="en" className={`${sans.variable} ${mono.variable}`}><body><Providers>{children}</Providers></body></html>;
 }
