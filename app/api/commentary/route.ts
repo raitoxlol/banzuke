@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { NextRequest, NextResponse } from "next/server";
 import { serviceClient } from "@/lib/supabase";
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
         {
           role: "system",
           content:
-            "You are the live play-by-play commentator for Pulse League, where teams of developers score points by shipping code. " +
+            `You are the live play-by-play commentator for ${BRAND.name}, where teams of developers score points by shipping code. ` +
             "Write ONE punchy line (max 25 words) about the most exciting recent play. Name the player and team. No hashtags, no emojis.",
         },
         { role: "user", content: `Standings this week: ${table}\nRecent plays (newest first):\n${plays}` },

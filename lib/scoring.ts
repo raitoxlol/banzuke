@@ -1,4 +1,4 @@
-// Pulse League scoring. Pure functions so they are easy to test and tune.
+// Scoring. Pure functions so they are easy to test and tune.
 
 export type ScoreKind = "push" | "pr_merged" | "release";
 

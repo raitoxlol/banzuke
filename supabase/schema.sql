@@ -7,10 +7,10 @@ create table if not exists teams (
 );
 
 insert into teams (name, color) values
-  ('Team Kichijoji', '#ff4d6d'),
-  ('Team Shibuya',  '#4dabf7'),
-  ('Team Akiba',    '#ffd43b'),
-  ('Team Shimokita','#69db7c')
+  ('Team Kichijoji', '#E07A8A'),
+  ('Team Shibuya',  '#6FA8DC'),
+  ('Team Akiba',    '#D4B05C'),
+  ('Team Shimokita','#6FBF8E')
 on conflict (name) do nothing;
 
 create table if not exists players (

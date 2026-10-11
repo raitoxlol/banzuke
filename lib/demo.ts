@@ -2,10 +2,10 @@ import type { PulseEvent, Team } from "./supabase";
 
 // Demo mode: fake plays so the broadcast looks alive before Supabase is wired.
 export const DEMO_TEAMS: Team[] = [
-  { id: 1, name: "Team Kichijoji", color: "#ff4d6d", score: 0 },
-  { id: 2, name: "Team Shibuya", color: "#4dabf7", score: 0 },
-  { id: 3, name: "Team Akiba", color: "#ffd43b", score: 0 },
-  { id: 4, name: "Team Shimokita", color: "#69db7c", score: 0 },
+  { id: 1, name: "Team Kichijoji", color: "#E07A8A", score: 0 },
+  { id: 2, name: "Team Shibuya", color: "#6FA8DC", score: 0 },
+  { id: 3, name: "Team Akiba", color: "#D4B05C", score: 0 },
+  { id: 4, name: "Team Shimokita", color: "#6FBF8E", score: 0 },
 ];
 const PLAYERS = [
   ["raitox", 1, 35.70, 139.58], ["sakura-dev", 2, 35.66, 139.70], ["kenji", 3, 35.70, 139.77],

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { PulseMap } from "@/components/PulseMap";
 import { anonClient, hasSupabase, PulseEvent, Team } from "@/lib/supabase";
+import { BRAND } from "@/lib/brand";
 import { DEMO_TEAMS, fakeEvent } from "@/lib/demo";
 
 const LABEL = { push: "pushed", pr_merged: "merged a PR", release: "shipped a release" } as const;
@@ -9,7 +10,7 @@ const LABEL = { push: "pushed", pr_merged: "merged a PR", release: "shipped a re
 export default function Broadcast() {
   const [events, setEvents] = useState<PulseEvent[]>([]);
   const [teams, setTeams] = useState<Team[]>(DEMO_TEAMS);
-  const [line, setLine] = useState("Pulse League is live. Ship code, score for your team.");
+  const [line, setLine] = useState(`${BRAND.name} is live. Ship code, score for your team.`);
   const demo = !hasSupabase();
 
   // Recompute team scores from what we've seen (demo) or reload the view (live).
@@ -51,7 +52,7 @@ export default function Broadcast() {
   return (
     <main className="broadcast">
       <header>
-        <h1><span className="dot" /> PULSE LEAGUE <small>{demo ? "DEMO" : "LIVE"}</small></h1>
+        <h1><span className="dot" /> {BRAND.name.toUpperCase()} <small>{demo ? "DEMO" : "LIVE"}</small></h1>
         <a href="/join" className="join">Join a team →</a>
       </header>
       <section className="commentary">{line}</section>

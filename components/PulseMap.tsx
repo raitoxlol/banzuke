@@ -33,7 +33,7 @@ export function PulseMap({ events, teams }: { events: PulseEvent[]; teams: Team[
         return (
           <g key={e.id} transform={`translate(${p[0]},${p[1]})`} opacity={Math.max(0.25, 1 - age / 900)}>
             {fresh && <circle r={r} className="ping" stroke={color.get(e.team_id)} />}
-            <circle r={r} fill={color.get(e.team_id) ?? "#fff"} />
+            <circle r={r} fill={color.get(e.team_id) ?? "var(--fg)"} />
           </g>
         );
       })}
