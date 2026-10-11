@@ -12,14 +12,14 @@ export function JoinQr({ compact = false }: { compact?: boolean }) {
     return () => { mounted = false; };
   }, []);
   if (compact) return <a className="bzk-join-qr" href="/join">
-    <div className="bzk-join-copy"><b>Join the match</b><span>Scan to sign in<br />with GitHub</span></div>
+    <div className="bzk-join-copy"><b>参加する</b><span>QRコードから<br />GitHubでログイン</span></div>
     <div className="bzk-qr-code" aria-hidden="true" dangerouslySetInnerHTML={{ __html: svg }} />
   </a>;
   return (
     <div className="qr">
       <div className="qr-code" dangerouslySetInnerHTML={{ __html: svg }} />
-      <div className="qr-copy"><b>Scan to join the room</b><span className="num">{url}</span>
-        <small className="muted">Sign in with GitHub. Your last 72h count. Private repos score without showing names.</small></div>
+      <div className="qr-copy"><b>QRコードから会場に参加</b><span className="num">{url}</span>
+        <small className="muted">GitHubでログインすると過去72時間の活動を集計します。非公開リポジトリも名前を表示せず得点に加算します。</small></div>
     </div>
   );
 }

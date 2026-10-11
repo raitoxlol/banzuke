@@ -13,5 +13,5 @@ import { Providers } from "@/components/Providers";
 export const metadata = { title: BRAND.name, description: BRAND.tagline };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html lang="en" className={`${sans.variable} ${mono.variable} ${broadcast.variable} ${display.variable}`}><body><Providers>{children}</Providers><Analytics /></body></html>;
+  return <html lang="ja" className={`${sans.variable} ${mono.variable} ${broadcast.variable} ${display.variable}`}><body><Providers>{children}</Providers><Analytics /></body></html>;
 }

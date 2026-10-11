@@ -23,7 +23,7 @@ test("broadcast ranks real builders, tags agents (detected > pick > human), keep
   assert.equal(model.feed.find((e) => e.id === "new")?.agent, "cursor");
   assert.equal(model.feed[0].id, "orphan");
   assert.equal(model.feed[0].agent, "human");
-  assert.ok(model.commentary.includes("+10 for Human / other"));
+  assert.ok(model.commentary.includes("手動・その他 に+10点"));
   assert.deepEqual(data.plays.map((entry) => entry.id), ["old", "new", "orphan"]);
 });
 
@@ -35,7 +35,7 @@ test("broadcast masks tampered private repo and summary before safe entries and 
     assert.equal(model.feed[0].login, "builder");
     assert.equal("repo" in model.feed[0], false);
     assert.equal("summary" in model.feed[0], false);
-    assert.ok(model.commentary.includes("a private repo"));
+    assert.ok(model.commentary.includes("非公開リポジトリ"));
     const serialized = JSON.stringify(model);
     for (const secret of ["hidden-launch", "SECRET", "pricing implementation"]) assert.ok(!serialized.includes(secret), `${kind} leaked ${secret}`);
   }
@@ -50,7 +50,7 @@ test("broadcast is deterministic and empty means empty (no mock data)", () => {
   assert.equal(empty.race.total, 0);
   assert.equal(empty.feed.length, 0);
   assert.equal(empty.builders.length, 0);
-  assert.ok(empty.commentary.includes("Waiting for the first push"));
+  assert.ok(empty.commentary.includes("最初のプッシュを待っています"));
 });
 
 test("JST deadline uses the Japanese calendar day across UTC and JST midnight boundaries", () => {

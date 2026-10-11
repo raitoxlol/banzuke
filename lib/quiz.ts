@@ -6,10 +6,10 @@ import { AGENTS, AGENT_IDS, agentLabel, type Agent } from "./agents";
 export interface Answers { tool: Agent; hour: "3am" | "3pm"; indent: "tabs" | "spaces"; friday: "yes" | "no" }
 
 export const QUESTIONS = [
-  { key: "tool", q: "Your main coding agent?", opts: AGENTS.map((a) => [a.id, a.id === "human" ? "Just me" : a.label] as const) },
-  { key: "hour", q: "Ship at 3am or 3pm?", opts: [["3am", "3am"], ["3pm", "3pm"]] },
-  { key: "indent", q: "Read the diff or just accept?", opts: [["tabs", "Read it"], ["spaces", "Accept all"]] },
-  { key: "friday", q: "Agent broke it. Now what?", opts: [["yes", "Reprompt"], ["no", "Fix it myself"]] },
+  { key: "tool", q: "メインで使うコーディングエージェントは？", opts: AGENTS.map((a) => [a.id, a.id === "human" ? "自分だけ" : a.label] as const) },
+  { key: "hour", q: "開発を仕上げるなら午前3時？午後3時？", opts: [["3am", "午前3時"], ["3pm", "午後3時"]] },
+  { key: "indent", q: "差分を読む？そのまま承認する？", opts: [["tabs", "差分を読む"], ["spaces", "すべて承認"]] },
+  { key: "friday", q: "エージェントが壊したらどうする？", opts: [["yes", "指示を出し直す"], ["no", "自分で直す"]] },
 ] as const;
 
 export const GROUPS = 6;

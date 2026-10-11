@@ -18,11 +18,11 @@ export function FuelPanel({ top = 5 }: { top?: number }) {
   return (
     <section style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, display: "grid", gap: 12 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <b style={{ letterSpacing: ".14em", fontSize: 12 }}>AI FUEL · TOKENS BURNED · 72H</b>
+        <b style={{ letterSpacing: ".14em", fontSize: 12 }}>AI使用量 · 消費トークン · 過去72時間</b>
         <span className="muted small num">{short(sum)}</span>
       </header>
-      {live.length ? <div style={{ fontWeight: 600 }}>{(() => { const t = [...live].sort((a, b) => tools[b.id] - tools[a.id])[0]; return <span style={{ color: t.color }}>{t.label} burns the most · <span className="num">{short(tools[t.id])}</span></span>; })()}</div> : null}
-      <div role="img" aria-label={live.map((t) => `${t.label} ${((tools[t.id] / (sum || 1)) * 100).toFixed(0)}%`).join(", ") || "no fuel yet"}
+      {live.length ? <div style={{ fontWeight: 600 }}>{(() => { const t = [...live].sort((a, b) => tools[b.id] - tools[a.id])[0]; return <span style={{ color: t.color }}>{t.label} の使用量が最多 · <span className="num">{short(tools[t.id])}</span></span>; })()}</div> : null}
+      <div role="img" aria-label={live.map((t) => `${t.label} ${((tools[t.id] / (sum || 1)) * 100).toFixed(0)}%`).join(", ") || "使用量はまだありません"}
         style={{ display: "flex", height: 18, borderRadius: 9, overflow: "hidden", background: "var(--border)" }}>
         {live.map((t) => <div key={t.id} title={`${t.label} ${short(tools[t.id])}`} style={{ width: `${(tools[t.id] / sum) * 100}%`, background: t.color, transition: "width .8s cubic-bezier(.2,.8,.2,1)" }} />)}
       </div>
@@ -42,8 +42,8 @@ export function FuelPanel({ top = 5 }: { top?: number }) {
             </li>
           ))}
         </ol>
-      ) : <p className="muted small" style={{ margin: 0 }}>No fuel yet.</p>}
-      <p className="muted small" style={{ margin: 0 }}>Add yours: <code className="num">{CMD}</code> (counts only, never prompts or code)</p>
+      ) : <p className="muted small" style={{ margin: 0 }}>使用量はまだありません。</p>}
+      <p className="muted small" style={{ margin: 0 }}>自分の使用量を送信： <code className="num">{CMD}</code> （使用量のみ。プロンプトやコードは送信しません）</p>
     </section>
   );
 }

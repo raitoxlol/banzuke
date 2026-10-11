@@ -3,9 +3,9 @@
   --fg: #E8EAF0; --muted: #9AA1B0; --pulse: #5BBDBA; --success: #4CC38A; --warn: #E5A84B;
   --team-rose: #E07A8A; --team-blue: #6FA8DC; --team-gold: #D4B05C; --team-green: #6FBF8E; --team-violet: #A68CD9; --team-peach: #E39A6B;
   --panel: var(--surface-1);
-  --font-sans: var(--font-geist), "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), "Inter", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
-  --font-jp: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Serif CJK JP", serif;
+  --font-jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -237,7 +237,7 @@ aside { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .room-broadcast {
   --bg: #171f1b; --surface-1: #1e2922; --surface-2: #26342b; --border: #3c4a40;
   --fg: #f1efe7; --muted: #b1b9ae; --claude: #dda36a; --codex: #a7c7b5; --live: #e15f54;
-  --font-sans: var(--font-barlow), sans-serif; --display: var(--font-barlow-condensed), sans-serif;
+  --font-sans: var(--font-barlow), var(--font-jp); --display: var(--font-barlow-condensed), var(--font-jp);
   height: 100svh; min-height: 840px; padding: 20px 28px 20px; background: var(--bg); color: var(--fg);
   display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 112px 190px minmax(0, 1fr) 48px; gap: 16px;
   font: 400 16px/1.35 var(--font-sans); overflow: hidden; font-variant-numeric: tabular-nums;
