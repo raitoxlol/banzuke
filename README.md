@@ -35,3 +35,13 @@ Public and private repos count (private shown as "a private repo"). Each play is
 - Weekly seasons, promotion and relegation
 - v2: `pulse` CLI that reads Claude Code / Codex usage for token and efficiency boards
 - Stream the page 24/7 (headless browser → OBS/ffmpeg → YouTube/Twitch)
+
+## Use with your Grok Bot
+
+Paste this into your Grok Bot:
+
+```
+Read https://raw.githubusercontent.com/raitoxlol/banzuke/main/grokbot/SKILL.md and save it as a skill, then tell me how I'm doing on Banzuke (my GitHub is <login>).
+```
+
+Public read-only API (CORS open, cached 15s): `GET /api/status?login=<github>` and `GET /api/board`. Private repo names and commit messages are never returned.
