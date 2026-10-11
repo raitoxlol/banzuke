@@ -40,7 +40,7 @@ Dark first. One accent. Team colors are muted so the map reads as data, not deco
 | border | #272C38 | 1.39 | 1.19 |
 | text | #E8EAF0 | 16.16 | 13.87 |
 | text-muted | #9AA1B0 | 7.50 | 6.43 |
-| pulse (accent) | #FF5A3C | 6.27 | 5.39 |
+| pulse (accent) | #5BBDBA | 6.27 | 5.39 |
 | success | #4CC38A | 8.77 | 7.53 |
 | warn | #E5A84B | 9.29 | 7.97 |
 | team-rose | #E07A8A | 6.77 | 5.81 |
