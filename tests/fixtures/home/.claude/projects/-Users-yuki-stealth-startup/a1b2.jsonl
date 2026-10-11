@@ -1,0 +1,6 @@
+{"type":"user","timestamp":"2026-10-11T02:00:00.000Z","cwd":"/Users/yuki/stealth-startup","sessionId":"s1","message":{"role":"user","content":"SECRET_PROMPT build the pricing engine"}}
+{"type":"assistant","timestamp":"2026-10-11T02:00:05.000Z","cwd":"/Users/yuki/stealth-startup","requestId":"req_1","message":{"id":"msg_1","model":"claude-sonnet-4-5","role":"assistant","content":[{"type":"text","text":"SECRET_CODE_LINE"}],"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":1000,"cache_read_input_tokens":2000}}}
+{"type":"assistant","timestamp":"2026-10-11T02:00:06.000Z","cwd":"/Users/yuki/stealth-startup","requestId":"req_1","message":{"id":"msg_1","model":"claude-sonnet-4-5","role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"src/pricing.ts"}}],"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":1000,"cache_read_input_tokens":2000}}}
+{"type":"assistant","timestamp":"2026-10-11T03:10:00.000Z","cwd":"/Users/yuki/stealth-startup","requestId":"req_2","message":{"id":"msg_2","role":"assistant","content":"x","usage":{"input_tokens":7,"output_tokens":3,"cache_read_input_tokens":10}}}
+not json SECRET_PROMPT
+{"type":"summary","summary":"SECRET_PROMPT stealth-startup"}

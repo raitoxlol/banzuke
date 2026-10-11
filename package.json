@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "simulate": "node scripts/simulate.mjs",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "fuel": "node cli/banzuke.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
@@ -30,5 +31,8 @@
     "jose": "^6.2.12",
     "tsx": "^4.23.15",
     "typescript": "^5.6.2"
+  },
+  "bin": {
+    "banzuke": "cli/banzuke.mjs"
   }
 }

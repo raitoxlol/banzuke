@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { fromWebhook, toRow } from "../lib/ingest";
+import { cleanWindows } from "../lib/fuel";
 
 const http = httpRouter();
 auth.addHttpRoutes(http);
@@ -30,6 +31,24 @@ http.route({
     if (!play) return Response.json({ ignored: "no points" });
     const res = await ctx.runMutation(internal.room.recordWebhook, { row: toRow(play, -1) });
     return Response.json({ result: res, kind: play.kind, private: play.private });
+  }),
+});
+
+// AI fuel from the CLI. Identity = whoever GitHub says owns the bearer token; the token is not stored.
+http.route({
+  path: "/tokens",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!token) return new Response("missing GitHub token", { status: 401 });
+    const gh = await fetch("https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, "user-agent": "banzuke", accept: "application/vnd.github+json" } });
+    if (!gh.ok) return new Response("GitHub token rejected", { status: 401 });
+    const { login } = (await gh.json()) as { login?: string };
+    if (!login) return new Response("no login", { status: 401 });
+    let windows;
+    try { windows = cleanWindows(JSON.parse(await req.text()), Date.now()); } catch (e) { return new Response((e as Error).message, { status: 400 }); }
+    const res = await ctx.runMutation(internal.fuel.record, { login, windows });
+    return Response.json(res, { status: "error" in res ? 403 : 200 });
   }),
 });
 

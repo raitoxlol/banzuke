@@ -27,4 +27,9 @@ export default defineSchema({
     private: v.boolean(), source: v.union(v.literal("webhook"), v.literal("backfill")),
     repo: v.string(), summary: v.string(), dedupeKey: v.string(),
   }).index("by_key", ["dedupeKey"]).index("by_at", ["at"]).index("by_login_at", ["login", "at"]),
+  // AI fuel (opt-in CLI): hourly token totals per tool. Counts only; never affects score.
+  tokens: defineTable({
+    login: v.string(), team: v.number(), tool: v.union(v.literal("claude"), v.literal("codex")),
+    input: v.number(), output: v.number(), cache: v.number(), windowStart: v.number(), windowEnd: v.number(), syncedAt: v.number(),
+  }).index("by_key", ["login", "tool", "windowStart"]).index("by_window", ["windowStart"]),
 });
