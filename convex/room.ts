@@ -5,6 +5,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx } from "./_generated/server";
 import { kind, answersV } from "./schema";
 import { sortIntoStable, smallest } from "../lib/quiz";
+import { tallySides } from "../lib/sides";
 import { assertClean, fetchPublicEvents, fromPublicEvents, toRow, type Row, BACKFILL_HOURS } from "../lib/ingest";
 import { MAX_PUSH_POINTS_PER_HOUR } from "../lib/scoring";
 
@@ -114,5 +115,18 @@ export const removePlayer = internalMutation({
     const plays = await ctx.db.query("plays").withIndex("by_login_at", (q) => q.eq("login", login)).collect();
     for (const p of plays) await ctx.db.delete(p._id);
     return plays.length;
+  },
+});
+
+/** Tug-of-war: points + player counts per tool side, and the side of the newest play. */
+export const sides = query({
+  args: {},
+  handler: async (ctx) => {
+    const since = Date.now() - BACKFILL_HOURS * 3600_000;
+    const [players, plays] = await Promise.all([
+      ctx.db.query("players").collect(),
+      ctx.db.query("plays").withIndex("by_at", (q) => q.gte("at", since)).order("desc").take(4000),
+    ]);
+    return tallySides(players, plays.map((p) => ({ id: p._id as string, login: p.login, team: p.team, points: p.points, at: p.at })));
   },
 });
