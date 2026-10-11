@@ -6,6 +6,8 @@ Builders sign in with GitHub, get sorted at random onto **Team Blue** or **Team 
 Live: **https://banzuke.raitox.tech** · Join: **https://banzuke.raitox.tech/join**
 Built at the Grok Bot Tokyo Hackathon (Oct 11, 2026).
 
+> **Note for reviewers:** the board is intentionally almost empty right now. Banzuke was built for the people in this room, and participants join live during the presentation by scanning the QR code (`/join`). Until then, the only player is the builder (Team Orange). Add `?demo=1` to `/` or `/tug` to see it with sample data.
+
 ## What it does
 - **Instant score:** signing in with GitHub backfills your last 72 hours of public activity.
 - **Private repos count, privately:** install the [GitHub App](https://github.com/apps/banzukeboard/installations/new) and private pushes score. Repo names and commit messages are never stored or shown.
