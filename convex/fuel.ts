@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { summarize, FUEL_HOURS, HOUR } from "../lib/fuel";
 import { toolValidator as tool } from "./tools";
 
@@ -43,5 +44,22 @@ export const clear = internalMutation({
     const rows = await ctx.db.query("tokens").withIndex("by_key", (q) => q.eq("login", login)).collect();
     for (const r of rows) await ctx.db.delete(r._id);
     return rows.length;
+  },
+});
+
+/** For /join onboarding: has the signed-in user's CLI posted tokens? null = not signed in. Totals cover the last 72h. */
+export const myStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    const login = userId ? (await ctx.db.get(userId))?.githubLogin : undefined;
+    if (!login) return null;
+    const rows = await ctx.db.query("tokens").withIndex("by_key", (q) => q.eq("login", login)).collect();
+    const since = Math.floor((Date.now() - FUEL_HOURS * HOUR) / HOUR) * HOUR;
+    const recent = rows.filter((r) => r.windowStart >= since);
+    const tools: Record<string, number> = {};
+    let total = 0;
+    for (const r of recent) { const t = r.input + r.output + r.cache; tools[r.tool] = (tools[r.tool] ?? 0) + t; total += t; }
+    return { login, connected: rows.length > 0, lastSyncAt: rows.reduce((m, r) => Math.max(m, r.syncedAt), 0) || null, total, tools };
   },
 });

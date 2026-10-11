@@ -27,7 +27,15 @@ http.route({
     const body = await req.text();
     const secret = process.env.GITHUB_WEBHOOK_SECRET;
     if (!secret || !(await verify(secret, body, req.headers.get("x-hub-signature-256")))) return new Response("bad signature", { status: 401 });
-    const play = fromWebhook(req.headers.get("x-github-event"), JSON.parse(body), 0);
+    const event = req.headers.get("x-github-event"), payload = JSON.parse(body);
+    if (event === "installation" && payload.installation?.id) {
+      await ctx.runMutation(internal.room.recordInstall, {
+        installationId: payload.installation.id, account: payload.installation.account?.login ?? "",
+        sender: payload.sender?.login ?? "", active: !["deleted", "suspend"].includes(payload.action),
+      });
+      return Response.json({ installation: payload.action });
+    }
+    const play = fromWebhook(event, payload, 0);
     if (!play) return Response.json({ ignored: "no points" });
     const res = await ctx.runMutation(internal.room.recordWebhook, { row: toRow(play, -1) });
     return Response.json({ result: res, kind: play.kind, private: play.private });

@@ -1,10 +1,14 @@
 import { defineSchema, defineTable } from "convex/server";
 import { toolValidator } from "./tools";
 import { authTables } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { v, type Validator } from "convex/values";
+import { AGENT_IDS, type Agent } from "../lib/agents";
 
+const lit = AGENT_IDS.map((a) => v.literal(a)) as unknown as [Validator<Agent>, Validator<Agent>, ...Validator<Agent>[]];
+/** One of lib/agents.ts AGENTS. */
+export const agentV = v.union(...lit);
 export const answersV = v.object({
-  tool: v.union(v.literal("claude"), v.literal("codex")), hour: v.union(v.literal("3am"), v.literal("3pm")),
+  tool: agentV, hour: v.union(v.literal("3am"), v.literal("3pm")),
   indent: v.union(v.literal("tabs"), v.literal("spaces")), friday: v.union(v.literal("yes"), v.literal("no")),
 });
 export const kind = v.union(v.literal("push"), v.literal("pr_merged"), v.literal("release"));
@@ -27,7 +31,12 @@ export default defineSchema({
     login: v.string(), team: v.number(), kind, points: v.number(), at: v.number(),
     private: v.boolean(), source: v.union(v.literal("webhook"), v.literal("backfill")),
     repo: v.string(), summary: v.string(), dedupeKey: v.string(),
+    agent: v.optional(agentV), // detected from commits/branch (lib/agents.ts); absent = use the player's pick
   }).index("by_key", ["dedupeKey"]).index("by_at", ["at"]).index("by_login_at", ["login", "at"]),
+  // GitHub App installs, from the webhook `installation` event. Logins only; no repo list.
+  installations: defineTable({
+    installationId: v.number(), account: v.string(), sender: v.string(), active: v.boolean(), at: v.number(),
+  }).index("by_installation", ["installationId"]).index("by_account", ["account"]).index("by_sender", ["sender"]),
   // AI fuel (opt-in CLI): hourly token totals per tool. Counts only; never affects score.
   tokens: defineTable({
     login: v.string(), team: v.number(), tool: toolValidator,

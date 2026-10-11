@@ -3,16 +3,16 @@ import { internalAction, internalMutation, mutation, query } from "./_generated/
 import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx } from "./_generated/server";
-import { kind, answersV } from "./schema";
+import { kind, answersV, agentV } from "./schema";
 import { sortIntoStable, smallest } from "../lib/quiz";
-import { tallySides } from "../lib/sides";
+import { tallyRace } from "../lib/agents";
 import { assertClean, fetchPublicEvents, fromPublicEvents, toRow, type Row, BACKFILL_HOURS } from "../lib/ingest";
 import { MAX_PUSH_POINTS_PER_HOUR } from "../lib/scoring";
 
 const STABLES = 6;
 const rowV = v.object({
   login: v.string(), team: v.number(), kind, points: v.number(), at: v.number(), private: v.boolean(),
-  source: v.union(v.literal("webhook"), v.literal("backfill")), repo: v.string(), summary: v.string(), dedupeKey: v.string(),
+  source: v.union(v.literal("webhook"), v.literal("backfill")), repo: v.string(), summary: v.string(), dedupeKey: v.string(), agent: v.optional(agentV),
 });
 
 /** Insert once per dedupeKey. Returns true if new. */
@@ -34,7 +34,11 @@ export const join = mutation({
     const login = user?.githubLogin;
     if (!login) throw new Error("not a GitHub account");
     const have = await ctx.db.query("players").withIndex("by_login", (q) => q.eq("login", login)).first();
-    if (have) return { login, team: have.team, fresh: false };
+    if (have) {
+      // Re-taking the quiz updates your agent pick; your team and points stay.
+      if (answers) await ctx.db.patch(have._id, { answers });
+      return { login, team: have.team, fresh: false };
+    }
     const sizes = await Promise.all(Array.from({ length: STABLES }, (_, t) =>
       ctx.db.query("players").withIndex("by_team", (q) => q.eq("team", t)).collect().then((r) => r.length)));
     const team = answers ? sortIntoStable(answers, sizes) : smallest(sizes);
@@ -87,8 +91,8 @@ export const board = query({
     ]);
     return {
       players: players.map((p) => ({ login: p.login, avatar: p.avatar, team: p.team, answers: p.answers })),
-      plays: plays.map(({ login, team, kind, points, at, private: priv, repo, summary, _id }) =>
-        ({ id: _id as string, login, team, kind, points, at, private: priv, repo, summary })),
+      plays: plays.map(({ login, team, kind, points, at, private: priv, repo, summary, agent, _id }) =>
+        ({ id: _id as string, login, team, kind, points, at, private: priv, repo, summary, ...(agent ? { agent } : {}) })),
     };
   },
 });
@@ -118,8 +122,8 @@ export const removePlayer = internalMutation({
   },
 });
 
-/** Tug-of-war: points + player counts per tool side, and the side of the newest play. */
-export const sides = query({
+/** Agent race: points + builders per agent lane, and the agent of the newest play. */
+export const race = query({
   args: {},
   handler: async (ctx) => {
     const since = Date.now() - BACKFILL_HOURS * 3600_000;
@@ -127,6 +131,34 @@ export const sides = query({
       ctx.db.query("players").collect(),
       ctx.db.query("plays").withIndex("by_at", (q) => q.gte("at", since)).order("desc").take(4000),
     ]);
-    return tallySides(players, plays.map((p) => ({ id: p._id as string, login: p.login, team: p.team, points: p.points, at: p.at })));
+    return tallyRace(players, plays.map((p) => ({ id: p._id as string, login: p.login, points: p.points, at: p.at, agent: p.agent })));
+  },
+});
+
+/** Webhook `installation` event: upsert by installation id. */
+export const recordInstall = internalMutation({
+  args: { installationId: v.number(), account: v.string(), sender: v.string(), active: v.boolean() },
+  handler: async (ctx, a) => {
+    const have = await ctx.db.query("installations").withIndex("by_installation", (q) => q.eq("installationId", a.installationId)).first();
+    const row = { ...a, at: Date.now() };
+    if (have) await ctx.db.replace(have._id, row); else await ctx.db.insert("installations", row);
+  },
+});
+
+/** For /join onboarding: is the GitHub App installed for the signed-in user? null = not signed in.
+ *  installed = an active install on their account or one they installed, or (older installs, before this table) any webhook-scored play. */
+export const myInstall = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    const login = userId ? (await ctx.db.get(userId))?.githubLogin : undefined;
+    if (!login) return null;
+    const rows = [
+      ...(await ctx.db.query("installations").withIndex("by_account", (q) => q.eq("account", login)).collect()),
+      ...(await ctx.db.query("installations").withIndex("by_sender", (q) => q.eq("sender", login)).collect()),
+    ].filter((r) => r.active);
+    const plays = await ctx.db.query("plays").withIndex("by_login_at", (q) => q.eq("login", login)).order("desc").take(500);
+    const webhookPlays = plays.filter((p) => p.source === "webhook").length;
+    return { login, installed: rows.length > 0 || webhookPlays > 0, installations: rows.length, webhookPlays, joined: Boolean(await ctx.db.query("players").withIndex("by_login", (q) => q.eq("login", login)).first()) };
   },
 });
