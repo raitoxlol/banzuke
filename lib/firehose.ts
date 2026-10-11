@@ -46,43 +46,76 @@ export function heyaOf(ownerId: number | string): number {
 }
 
 const BOT = /\[bot\]$|^dependabot|^renovate|github-actions|-bot$|^bot-/i;
+export interface RawEvent { id: string; type: string; actor: Record<string, unknown>; repo: Record<string, unknown>; payload: Record<string, unknown>; created_at: string; public?: boolean }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export interface RawEvent { id: string; type: string; actor: any; repo: any; payload: any; created_at: string; org?: any }
-
-/** Score one public event. `team` is resolved by the caller. Returns null for events that don't score. */
-export function toPlay(e: RawEvent, team: number, received?: number): Play | null {
-  const login: string = e.actor?.display_login ?? e.actor?.login ?? "";
-  if (!login || BOT.test(login) || BOT.test(e.actor?.login ?? "")) return null;
-  const created = Date.parse(e.created_at);
-  const base = { id: e.id, at: received ?? created, created, login, avatar: e.actor?.avatar_url ?? "", repo: e.repo?.name ?? "", team };
-  const p = e.payload ?? {};
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+function isPrivate(value: unknown, depth = 0): boolean {
+  if (depth > 12) return true;
+  if (!value || typeof value !== "object") return false;
+  const obj = record(value);
+  return obj.private === true || obj.public === false || Object.values(obj).some((v) => isPrivate(v, depth + 1));
+}
+function text(value: unknown, limit: number): string | null {
+  return typeof value === "string" && value.length > 0 && value.length <= limit && !/[\x00-\x1f\x7f]/.test(value) ? value : null;
+}
+function safeAvatar(value: unknown): string {
+  if (typeof value !== "string" || value.length > 512) return "";
+  try { const u = new URL(value); return u.protocol === "https:" && u.hostname === "avatars.githubusercontent.com" && !u.username && !u.password ? u.href : ""; } catch { return ""; }
+}
+export function toPlay(input: unknown, team: number, received?: number): Play | null {
+  if (isPrivate(input)) return null;
+  const e = record(input), actor = record(e.actor), repo = record(e.repo), p = record(e.payload);
+  const id = text(e.id, 100), login = text(actor.login, 39), name = text(repo.name, 240), date = text(e.created_at, 40);
+  if (!id || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || BOT.test(login) || !name || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(name) || !date) return null;
+  const created = Date.parse(date), at = received ?? created;
+  if (!Number.isFinite(created) || !Number.isFinite(at) || created < 0 || at < 0 || !Number.isInteger(team) || team < 0 || team > 5) return null;
+  const base = { id, at, created, login, avatar: safeAvatar(actor.avatar_url), repo: name, team };
   switch (e.type) {
     case "PushEvent": {
-      // The public feed no longer carries commit lists, so a push scores a flat point (size if present, capped).
-      const n = Math.max(1, Math.min(Number(p.distinct_size ?? p.size ?? 1) || 1, 3));
-      const branch = String(p.ref ?? "").replace("refs/heads/", "");
-      return { ...base, kind: "push", points: n * POINTS.push, summary: branch ? `to ${branch}` : "pushed" };
+      const size = p.distinct_size ?? p.size ?? 1;
+      if (typeof size !== "number" || !Number.isFinite(size) || size < 0 || !Number.isInteger(size)) return null;
+      const branch = p.ref === undefined ? "" : text(p.ref, 240);
+      if (branch === null) return null;
+      return { ...base, kind: "push", points: Math.max(1, Math.min(size, 3)) * POINTS.push, summary: branch ? `to ${branch.replace(/^refs\/heads\//, "")}` : "pushed" };
     }
     case "PullRequestEvent": {
-      const pr = p.pull_request ?? {};
+      const pr = record(p.pull_request), stars = record(record(pr.base).repo).stargazers_count ?? 0;
       if (p.action !== "closed" && p.action !== "merged") return null;
-      if (!pr.merged && !pr.merged_at && p.action !== "merged") return null;
-      const stars = Number(pr.base?.repo?.stargazers_count ?? 0);
-      return { ...base, kind: "pr_merged", points: prPoints(stars), summary: pr.title ? `#${pr.number} ${pr.title}` : `#${pr.number ?? ""} merged` };
+      if (pr.merged !== true && !pr.merged_at && p.action !== "merged") return null;
+      if (typeof stars !== "number" || !Number.isFinite(stars) || stars < 0) return null;
+      if (typeof pr.number !== "number" || !Number.isInteger(pr.number) || pr.number < 1) return null;
+      const title = pr.title === undefined ? "merged" : text(pr.title, 300);
+      if (!title) return null;
+      return { ...base, kind: "pr_merged", points: prPoints(stars), summary: `#${pr.number} ${title}` };
     }
     case "ReleaseEvent": {
-      if (p.action && p.action !== "published") return null;
-      const r = p.release ?? {};
-      return { ...base, kind: "release", points: releasePoints(!!r.prerelease), summary: r.tag_name ?? r.name ?? "release" };
+      const r = record(p.release);
+      if (p.action !== undefined && p.action !== "published") return null;
+      if (r.prerelease !== undefined && typeof r.prerelease !== "boolean") return null;
+      const summary = text(r.tag_name ?? r.name ?? "release", 240);
+      return summary ? { ...base, kind: "release", points: releasePoints(r.prerelease === true), summary } : null;
     }
-    case "WatchEvent":
-      return { ...base, kind: "star", points: 0, summary: "starred" };
+    case "WatchEvent": return { ...base, kind: "star", points: 0, summary: "starred" };
+    default: return null;
   }
-  return null;
 }
-
-export function ownerKey(e: RawEvent): string { return String(e.repo?.name ?? "").split("/")[0] || String(e.actor?.id ?? ""); }
+export function parsePlay(input: unknown): Play | null {
+  const p = record(input);
+  const id = text(p.id, 100), login = text(p.login, 39), repo = text(p.repo, 240), summary = text(p.summary, 320);
+  if (isPrivate(input) || !id || !login || !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(login) || !repo || !/^[a-z\d-]+\/[a-z\d_.-]+$/i.test(repo) || !summary
+    || typeof p.at !== "number" || !Number.isFinite(p.at) || p.at < 0
+    || typeof p.created !== "number" || !Number.isFinite(p.created) || p.created < 0
+    || typeof p.team !== "number" || !Number.isInteger(p.team) || p.team < 0 || p.team > 5) return null;
+  const { kind, points } = p;
+  if ((kind !== "push" && kind !== "pr_merged" && kind !== "release" && kind !== "star") || typeof points !== "number") return null;
+  if ((kind === "push" && ![1, 2, 3].includes(points)) || (kind === "pr_merged" && ![10, 12, 15].includes(points))
+    || (kind === "release" && ![13, 25].includes(points)) || (kind === "star" && points !== 0)) return null;
+  return { id, login, repo, summary, kind, points, at: p.at, created: p.created, team: p.team, avatar: safeAvatar(p.avatar) };
+}
+export function ownerKey(e: RawEvent): string { return String(e.repo.name ?? "").split("/")[0] || String(e.actor.id ?? ""); }
 export function langFromPayload(e: RawEvent): string | null | undefined {
-  return e.payload?.pull_request?.base?.repo?.language;
+  const lang = record(record(record(e.payload.pull_request).base).repo).language;
+  return typeof lang === "string" || lang === null ? lang : undefined;
 }
