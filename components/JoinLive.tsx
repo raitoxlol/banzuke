@@ -104,7 +104,7 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
       </button></li>)}
     </ol>
     <section className="product-panel join-active" aria-labelledby="join-step-title">
-      <div className="step-heading"><p>Step {STEPS.indexOf(step) + 1} of 6{step !== "signIn" && step !== "finish" ? " · Optional" : ""}</p><h2 id="join-step-title">{TITLES[step]}</h2></div>
+      <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>Step {STEPS.indexOf(step) + 1} of 6{step !== "signIn" && step !== "finish" ? " · Optional" : ""}</p></div>
       {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "Loading your points…" : <><strong>{points}</strong> points on the room board</>}</span></p>}
       {loading ? <p role="status" className="product-empty">Loading your GitHub account…</p> : <>
         {step === "signIn" && <>
