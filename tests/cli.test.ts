@@ -40,3 +40,44 @@ test("privacy: payload has only the six fields; no prompt, code, path or project
   for (const s of ["SECRET", "stealth", "pricing", "Users", "yuki", "msg_", "req_", "claude-sonnet", "Edit"]) assert.ok(!payload.includes(s), s);
   for (const w of run().windows) assert.deepEqual(Object.keys(w), ["tool", "input", "output", "cache", "windowStart", "windowEnd"]);
 });
+
+// ---- TUI degrades to plain text when not a TTY (CI, pipes, --plain, --yes) ----
+import { spawnSync } from "node:child_process";
+// @ts-ignore plain .mjs
+import { palette, toolBars, payloadPreview, wordmark, fuelRank } from "../cli/banzuke.mjs";
+const cli = join(__dirname, "..", "cli", "banzuke.mjs");
+const sh = (...args: string[]) => spawnSync(process.execPath, [cli, "--home", home, "--now", "2026-10-11T04:00:00Z", ...args],
+  { encoding: "utf8", env: { ...process.env, BANZUKE_STATE: join(home, "nope", "state.json"), GITHUB_TOKEN: "" } });
+const ESC = /\x1b\[/;
+
+test("plain: piped dry run prints totals + exact payload, no ANSI, sends nothing", () => {
+  const r = sh("--dry-run");
+  assert.equal(r.status, 0);
+  assert.ok(!ESC.test(r.stdout), "no escape codes");
+  assert.match(r.stdout, /Claude Code\s+input 107\s+output 53\s+cache 3,010/);
+  assert.match(r.stdout, /Dry run: nothing sent/);
+  const json = JSON.parse(r.stdout.slice(r.stdout.indexOf("{"), r.stdout.lastIndexOf("}") + 1));
+  assert.equal(json.windows.length, 3);
+});
+
+test("plain: no TTY and no --yes never sends", () => {
+  const r = sh("--plain");
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /Not sent \(no terminal to confirm\)/);
+});
+
+test("plain: --help lists the flags", () => {
+  const r = sh("--help");
+  for (const f of ["--dry-run", "--yes", "--plain", "--watch", "--full", "--onboard", "--home"]) assert.ok(r.stdout.includes(f), f);
+});
+
+test("render helpers: colorless output has no escapes; color uses teal", () => {
+  const off = palette(false), on = palette(true, { COLORTERM: "truecolor" }), on256 = palette(true, {});
+  const ws = run().windows, found = { claude: true, codex: true };
+  for (const s of [toolBars(ws, found, off), payloadPreview(ws, off), wordmark(off)]) assert.ok(!ESC.test(s));
+  assert.ok(wordmark(on).includes("38;2;91;189;186") && wordmark(on).includes("番付"));
+  assert.ok(wordmark(on256).includes("38;5;73"));
+  assert.ok(!payloadPreview(ws, off).match(/SECRET|stealth|Users/));
+  assert.deepEqual(fuelRank({ players: [{ login: "a", total: 9 }, { login: "RaitoXLOL", total: 5 }] }, "raitoxlol"), { rank: 2, of: 2, total: 5 });
+  assert.equal(fuelRank(null, "x"), null);
+});
