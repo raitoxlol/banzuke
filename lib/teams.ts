@@ -16,7 +16,7 @@ export function teamNames(seed = ROOM_SEED): [string, string] {
   let b = (a + 1 + ((h >>> 16) % (ADJ.length - 1))) % ADJ.length, m = (n + 1 + ((h >>> 24) % (NOUN.length - 1))) % NOUN.length;
   return [`Team ${ADJ[a]} ${NOUN[n]}`, `Team ${ADJ[b]} ${NOUN[m]}`];
 }
-export const TEAMS = teamNames();
+export const TEAMS = ["Team Blue", "Team Orange"] as const;
 
 export const teamOf = (login: string, seed = ROOM_SEED): 0 | 1 => (hash(`${seed}:${login.toLowerCase()}`) & 1) as 0 | 1;
 export const teamName = (login: string) => TEAMS[teamOf(login)];

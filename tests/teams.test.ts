@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { teamNames, teamOf, tallyTeams, TEAMS } from "../lib/teams";
 
 test("team names are deterministic and distinct", () => {
-  assert.deepEqual(teamNames(), TEAMS); assert.notEqual(TEAMS[0], TEAMS[1]);
+  assert.deepEqual([...TEAMS], ["Team Blue", "Team Orange"]); assert.equal(teamOf("raitoxlol"), 1);
   for (const s of ["a", "b", "c", "x"]) { const [a, b] = teamNames(s); assert.notEqual(a.split(" ")[1], b.split(" ")[1]); }
 });
 test("assignment is deterministic, case-insensitive, and roughly balanced", () => {

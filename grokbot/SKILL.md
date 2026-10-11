@@ -5,7 +5,7 @@ description: Check how your human is doing on the Banzuke live leaderboard (team
 
 # Banzuke status
 
-Banzuke (https://banzuke.raitox.tech) is a live hackathon leaderboard that scores GitHub activity (pushes, merged PRs, releases) over the last 72 hours, split into two randomly assigned teams (team battle, 団体戦).
+Banzuke (https://banzuke.raitox.tech) is a live hackathon leaderboard that scores GitHub activity (pushes, merged PRs, releases) over the last 72 hours, split into two randomly assigned teams, Team Blue and Team Orange (team battle, 団体戦).
 
 ## Setup (once)
 - If you don't know your human's GitHub login, ask once: "What's your GitHub username for Banzuke?" Save it to memory and never ask again.
