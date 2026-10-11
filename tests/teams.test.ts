@@ -17,3 +17,10 @@ test("tally + lead", () => {
   assert.equal(t.total, 21); assert.equal(t.sides[0].points + t.sides[1].points, 21);
   assert.equal(t.last!.team, teamOf("u6"));
 });
+import { resolveTeam } from "../lib/teams";
+test("stored pick overrides hash; null/undefined falls back", () => {
+  assert.equal(resolveTeam("raitoxlol"), 1); assert.equal(resolveTeam("raitoxlol", null), 1);
+  assert.equal(resolveTeam("raitoxlol", 0), 0);
+  const t = tallyTeams([{ login: "raitoxlol", side: 0 }], [{ id: "1", login: "raitoxlol", points: 5, at: 1 }]);
+  assert.equal(t.sides[0].points, 5); assert.equal(t.sides[1].points, 0);
+});

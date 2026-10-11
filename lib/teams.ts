@@ -19,17 +19,25 @@ export function teamNames(seed = ROOM_SEED): [string, string] {
 export const TEAMS = ["Team Blue", "Team Orange"] as const;
 
 export const teamOf = (login: string, seed = ROOM_SEED): 0 | 1 => (hash(`${seed}:${login.toLowerCase()}`) & 1) as 0 | 1;
-export const teamName = (login: string) => TEAMS[teamOf(login)];
+/** Stored pick wins; otherwise the hash. */
+export const resolveTeam = (login: string, side?: number | null): 0 | 1 => (side === 0 || side === 1 ? side : teamOf(login));
+export const teamName = (login: string, side?: number | null) => TEAMS[resolveTeam(login, side)];
+/** login(lowercase) -> resolved team, from player rows. */
+export const teamMap = (players: { login: string; side?: number | null }[]) => {
+  const m = new Map(players.map((p) => [p.login.toLowerCase(), resolveTeam(p.login, p.side)]));
+  return (login: string) => m.get(login.toLowerCase()) ?? teamOf(login);
+};
 
 export interface TeamSide { id: 0 | 1; name: string; color: string; points: number; builders: number }
 export interface TeamRace { sides: [TeamSide, TeamSide]; total: number; leader: 0 | 1 | null; last: { team: 0 | 1; at: number; id: string } | null }
 
-export function tallyTeams(players: { login: string }[], plays: { id: string; login: string; points: number; at: number }[]): TeamRace {
+export function tallyTeams(players: { login: string; side?: number | null }[], plays: { id: string; login: string; points: number; at: number }[]): TeamRace {
   const sides = TEAMS.map((name, id) => ({ id, name, color: TEAM_COLORS[id], points: 0, builders: new Set<string>() }));
+  const tOf = teamMap(players);
   let last: TeamRace["last"] = null, total = 0;
-  for (const p of players) sides[teamOf(p.login)].builders.add(p.login);
+  for (const p of players) sides[tOf(p.login)].builders.add(p.login);
   for (const p of plays) {
-    const t = teamOf(p.login); sides[t].points += p.points; sides[t].builders.add(p.login); total += p.points;
+    const t = tOf(p.login); sides[t].points += p.points; sides[t].builders.add(p.login); total += p.points;
     if (!last || p.at > last.at) last = { team: t, at: p.at, id: p.id };
   }
   const out = sides.map((s) => ({ ...s, builders: s.builders.size })) as [TeamSide, TeamSide];

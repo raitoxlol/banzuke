@@ -1,8 +1,8 @@
-import { teamName, tallyTeams } from "./teams";
+import { TEAMS, teamMap, tallyTeams } from "./teams";
 import { playAgent, playerAgent, tallyRace, type Agent } from "./agents";
 
 export const BOARD_URL = "https://banzuke.raitox.tech";
-type Player = { login: string; answers?: { tool?: string } | null };
+type Player = { login: string; side?: number | null; answers?: { tool?: string } | null };
 type Play = { id: string; login: string; kind: string; points: number; at: number; private: boolean; repo: string; summary?: string; agent?: Agent };
 export interface Snapshot { players: Player[]; plays: Play[] }
 
@@ -11,9 +11,10 @@ export function standings({ players, plays }: Snapshot) {
   const pts = new Map<string, number>();
   for (const p of players) pts.set(p.login, 0);
   for (const p of plays) pts.set(p.login, (pts.get(p.login) ?? 0) + p.points);
+  const tOf = teamMap(players);
   const by = new Map(players.map((p) => [p.login, p]));
   return [...pts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([login, points], i) => ({ rank: i + 1, login, team: teamName(login), points, agent: playerAgent(by.get(login) as any) }));
+    .map(([login, points], i) => ({ rank: i + 1, login, team: TEAMS[tOf(login)], points, agent: playerAgent(by.get(login) as any) }));
 }
 
 /** Public status for one login, or null. Never exposes private repo names or any commit text. */

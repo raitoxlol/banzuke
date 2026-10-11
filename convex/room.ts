@@ -80,6 +80,21 @@ export const recordWebhook = internalMutation({
   },
 });
 
+/** Pick Team Blue (0) / Orange (1), or null for random (hash). Switching allowed anytime. */
+export const pickTeam = mutation({
+  args: { team: v.union(v.literal(0), v.literal(1), v.null()) },
+  handler: async (ctx, { team }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("not signed in");
+    const login = (await ctx.db.get(userId))?.githubLogin;
+    if (!login) throw new Error("not a GitHub account");
+    const p = await ctx.db.query("players").withIndex("by_login", (q) => q.eq("login", login)).first();
+    if (!p) throw new Error("join first");
+    await ctx.db.patch(p._id, { side: team ?? undefined });
+    return { login, team };
+  },
+});
+
 /** Everything the Room board needs, reactive. */
 export const board = query({
   args: {},
@@ -90,7 +105,7 @@ export const board = query({
       ctx.db.query("plays").withIndex("by_at", (q) => q.gte("at", since)).order("desc").take(4000),
     ]);
     return {
-      players: players.map((p) => ({ login: p.login, avatar: p.avatar, team: p.team, answers: p.answers })),
+      players: players.map((p) => ({ login: p.login, avatar: p.avatar, team: p.team, answers: p.answers, ...(p.side !== undefined ? { side: p.side } : {}) })),
       plays: plays.map(({ login, team, kind, points, at, private: priv, repo, summary, agent, _id }) =>
         ({ id: _id as string, login, team, kind, points, at, private: priv, repo, summary, ...(agent ? { agent } : {}) })),
     };

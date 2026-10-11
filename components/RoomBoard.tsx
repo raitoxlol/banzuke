@@ -6,7 +6,7 @@ import { AGENTS, type Agent } from "@/lib/agents";
 import { CommentaryTicker, Count } from "@/components/Ticker";
 import { JoinQr } from "@/components/Qr";
 import { TeamTugBar, AgentChips } from "@/components/TugOfWar";
-import { tallyTeams, teamOf, TEAMS, TEAM_COLORS } from "@/lib/teams";
+import { tallyTeams, teamMap, TEAMS, TEAM_COLORS } from "@/lib/teams";
 import { ViewToggle } from "@/components/ViewToggle";
 
 type Clock = { nowMs: number; deadlineMs: number };
@@ -30,6 +30,7 @@ function PlaybackIcon({ paused }: { paused: boolean }) {
 
 export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boolean; joinCta?: ReactNode }) {
   const model = useMemo(() => deriveBroadcast(data), [data]);
+  const tOf = useMemo(() => teamMap(data.players as any), [data]);
   const teams = useMemo(() => tallyTeams(data.players, data.plays), [data]);
   const [clock, setClock] = useState<Clock | null>(null);
   const [filter, setFilter] = useState<FeedFilter>("all");
@@ -74,8 +75,8 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
       <section className="bzk-rankings" aria-labelledby="stable-title">
         <div className="bzk-section-head"><h2 id="stable-title">参加者 <span lang="ja" className="bzk-jp" aria-hidden="true">番付</span></h2><span className="bzk-heading-note">得点</span></div>
         <ol className="bzk-rank-list">
-          {ranked.map((b, index) => <li key={b.login} className="bzk-rank-row" style={{ transform: `translateY(${index * 100}%)`, ["--side" as string]: TEAM_COLORS[teamOf(b.login)] }}>
-            <span className="bzk-rank"><b className="num">#{index + 1}</b><span>{TEAMS[teamOf(b.login)].replace("Team ", "")}</span></span>
+          {ranked.map((b, index) => <li key={b.login} className="bzk-rank-row" style={{ transform: `translateY(${index * 100}%)`, ["--side" as string]: TEAM_COLORS[tOf(b.login)] }}>
+            <span className="bzk-rank"><b className="num">#{index + 1}</b><span>{TEAMS[tOf(b.login)].replace("Team ", "")}</span></span>
             <span className="bzk-stable-name"><b>@{b.login}</b><span>活動 {b.plays}件</span></span>
             <span className="bzk-stable-score"><Count value={b.score} /></span>
             <span className="bzk-rank-track" aria-hidden="true"><i style={{ width: `${topScore ? b.score / topScore * 100 : 0}%` }} /></span>

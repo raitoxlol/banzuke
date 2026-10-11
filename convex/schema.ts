@@ -24,6 +24,7 @@ export default defineSchema({
   }).index("email", ["email"]),
   players: defineTable({
     login: v.string(), userId: v.optional(v.id("users")), avatar: v.string(), team: v.number(), joinedAt: v.number(),
+    side: v.optional(v.union(v.literal(0), v.literal(1))), // picked Team Blue(0)/Orange(1); absent = hash (lib/teams.ts)
     answers: v.optional(answersV), // sign-up quiz (lib/quiz.ts); absent = skipped
   }).index("by_login", ["login"]).index("by_team", ["team"]),
   // Shape owned by lib/ingest.ts (Row). Private rows: repo === "" && summary === "".

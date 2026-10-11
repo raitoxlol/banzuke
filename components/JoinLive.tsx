@@ -1,5 +1,5 @@
 "use client";
-import { teamName, teamOf, TEAM_COLORS } from "@/lib/teams";
+import { resolveTeam, tallyTeams, TEAMS, TEAM_COLORS } from "@/lib/teams";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
@@ -55,6 +55,11 @@ function useJoinFlow() {
   }, [currentLogin, state.login, state.epoch, save]);
   const player = board?.players.find((p) => p.login.toLowerCase() === currentLogin?.toLowerCase());
   const answers = parseAnswers(player?.answers);
+  const side = (player as { side?: number } | undefined)?.side ?? null;
+  const pickTeamM = useMutation(api.room.pickTeam);
+  const pickTeam = useCallback((team: 0 | 1 | null) => pickTeamM({ team }).catch(() => undefined), [pickTeamM]);
+  const tt = tallyTeams(board?.players ?? [], board?.plays ?? []);
+  const teamPoints = [tt.sides[0].points, tt.sides[1].points];
   const joined = Boolean(currentLogin && state.login === currentLogin && (state.joined || install?.joined || player));
   const points = board && currentLogin ? board.plays.filter((p) => p.login.toLowerCase() === currentLogin.toLowerCase()).reduce((sum, p) => sum + p.points, 0) : null;
   const activeInstall = Boolean(currentLogin && install?.login === currentLogin && install.installations > 0);
@@ -79,7 +84,7 @@ function useJoinFlow() {
     if (step !== "finish" && state.progress.skipped.includes(step)) return "スキップ済み";
     return step === "finish" ? "完了" : "任意";
   };
-  return { state, dispatch, currentLogin, loading: isLoading || state.login !== currentLogin || (isAuthenticated && (install === undefined || fuel === undefined || (currentLogin !== null && !state.hydrated))), joined, points, answers, activeInstall, historicalApp, connected, lastSync: connected ? fuel?.lastSyncAt : null, busy: state.attempt.kind === "pending", copy, authenticate, save, evidence, notice: notice?.epoch === state.epoch ? notice.text : null };
+  return { side, pickTeam, teamPoints, state, dispatch, currentLogin, loading: isLoading || state.login !== currentLogin || (isAuthenticated && (install === undefined || fuel === undefined || (currentLogin !== null && !state.hydrated))), joined, points, answers, activeInstall, historicalApp, connected, lastSync: connected ? fuel?.lastSyncAt : null, busy: state.attempt.kind === "pending", copy, authenticate, save, evidence, notice: notice?.epoch === state.epoch ? notice.text : null };
 }
 
 export default function JoinLive({ icon }: { icon: React.ReactNode }) {
@@ -106,7 +111,13 @@ export default function JoinLive({ icon }: { icon: React.ReactNode }) {
     </ol>
     <section className="product-panel join-active" aria-labelledby="join-step-title">
       <div className="step-heading"><h2 id="join-step-title">{TITLES[step]}</h2><p>手順 {STEPS.indexOf(step) + 1} / 6{step !== "signIn" && step !== "finish" ? " · 任意" : ""}</p></div>
-      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "得点を読み込み中…" : <><strong>{points}</strong>点（会場の番付）</>}</span><span className="join-team" style={{ color: TEAM_COLORS[teamOf(currentLogin)], fontWeight: 900 }}>所属：{teamName(currentLogin)}</span></p>}
+      {currentLogin && <p className="join-account"><b>@{currentLogin}</b><span>{points === null ? "得点を読み込み中…" : <><strong>{points}</strong>点（会場の番付）</>}</span><span className="join-team" style={{ color: TEAM_COLORS[resolveTeam(currentLogin, flow.side)], fontWeight: 900 }}>所属：{TEAMS[resolveTeam(currentLogin, flow.side)]}</span></p>}
+      {currentLogin && flow.joined && <div className="join-team-pick" style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, margin: "8px 0 16px" }}>
+        {([0, 1] as const).map((t) => <button key={t} type="button" aria-pressed={resolveTeam(currentLogin, flow.side) === t} onClick={() => void flow.pickTeam(t)}
+          style={{ background: TEAM_COLORS[t], color: "#fff", fontWeight: 900, fontSize: 20, padding: "14px 10px", borderRadius: 12, border: resolveTeam(currentLogin, flow.side) === t ? "3px solid #fff" : "3px solid transparent", opacity: resolveTeam(currentLogin, flow.side) === t ? 1 : 0.6 }}>
+          {TEAMS[t]}<br /><small style={{ fontWeight: 700 }}>{flow.teamPoints[t]}点</small></button>)}
+        <button type="button" className="secondary" aria-pressed={flow.side == null} onClick={() => void flow.pickTeam(null)}>ランダム</button>
+      </div>}
       {loading ? <p role="status" className="product-empty">GitHubアカウントを読み込み中…</p> : <>
         {step === "signIn" && <>
           <p>ログインして会場に参加しましょう。新しく参加すると、過去72時間の公開活動の取り込みが始まります。</p>
