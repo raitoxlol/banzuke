@@ -68,7 +68,7 @@ export function RoomBoard({ data, live, joinCta }: { data: RoomData; live: boole
       <JoinQr compact />
     </header>
 
-    <div><TeamTugBar t={teams} /><AgentChips s={model.race} /></div>
+    <div className="bzk-match"><TeamTugBar t={teams} /><AgentChips s={model.race} /></div>
 
     <div className="bzk-middle">
       <section className="bzk-rankings" aria-labelledby="stable-title">
